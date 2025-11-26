@@ -11,7 +11,8 @@
     "ingest": "tsx scripts/ingest.ts",
     "query": "tsx scripts/query.ts",
     "chat": "tsx scripts/chat.ts",
-    "eval": "tsx tests/eval/retrieval.eval.ts"
+    "eval": "tsx tests/eval/retrieval.eval.ts",
+    "test": "node --import tsx --test tests/unit/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
