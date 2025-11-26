@@ -8,10 +8,12 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "ingest": "tsx scripts/ingest.ts"
+    "ingest": "tsx scripts/ingest.ts",
+    "query": "tsx scripts/query.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@google/generative-ai": "^0.24.1",
     "@pinecone-database/pinecone": "^4.0.0",
     "ai": "^4.0.0",
     "next": "14.2.18",
@@ -19,6 +21,9 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tree-sitter": "^0.21.1",
+    "tree-sitter-go": "^0.21.0",
+    "tree-sitter-python": "^0.21.0",
+    "tree-sitter-rust": "^0.21.0",
     "tree-sitter-typescript": "^0.23.2",
     "zod": "^3.23.8"
   },

@@ -44,4 +44,6 @@ coverage/
 # temp
 tmp/
 temp/
-.claude
+
+# nexu indexed data
+.nexu/
