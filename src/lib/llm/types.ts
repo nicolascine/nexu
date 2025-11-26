@@ -41,5 +41,5 @@ export interface EmbeddingProvider {
   embed(options: EmbedOptions): Promise<EmbedResult>;
 }
 
-export type LLMProviderType = 'anthropic' | 'openai' | 'ollama' | 'custom';
-export type EmbeddingProviderType = 'openai' | 'ollama';
+export type LLMProviderType = 'anthropic' | 'openai' | 'gemini' | 'ollama' | 'custom';
+export type EmbeddingProviderType = 'openai' | 'gemini' | 'ollama';

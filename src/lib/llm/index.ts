@@ -4,6 +4,7 @@ import type { CodeChunk } from '../ast';
 import type { LLMProvider, EmbeddingProvider, ChatOptions, EmbedOptions } from './types';
 import { getLLMConfig, getEmbeddingConfig } from './config';
 import { AnthropicProvider } from './providers/anthropic';
+import { GeminiProvider } from './providers/gemini';
 import { OpenAICompatibleProvider, createOllamaProvider } from './providers/openai-compatible';
 
 // re-export types
@@ -28,6 +29,8 @@ export function createLLMProvider(): LLMProvider {
       return new AnthropicProvider(config);
     case 'openai':
       return new OpenAICompatibleProvider(config);
+    case 'gemini':
+      return new GeminiProvider(config);
     case 'ollama':
       return createOllamaProvider(config);
     case 'custom':
@@ -45,6 +48,11 @@ export function createEmbeddingProvider(): EmbeddingProvider {
       return new OpenAICompatibleProvider({
         ...config,
         baseUrl: 'https://api.openai.com/v1',
+      });
+    case 'gemini':
+      return new GeminiProvider({
+        ...config,
+        apiKey: config.apiKey || process.env.GEMINI_API_KEY,
       });
     case 'ollama':
       return new OpenAICompatibleProvider({

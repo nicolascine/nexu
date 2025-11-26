@@ -34,8 +34,19 @@ export function getEmbeddingConfig(): EmbeddingConfig {
     provider,
     model: process.env.EMBEDDING_MODEL || getDefaultEmbeddingModel(provider),
     baseUrl: process.env.EMBEDDING_BASE_URL,
-    apiKey: provider === 'openai' ? process.env.OPENAI_API_KEY : undefined,
+    apiKey: getEmbeddingApiKey(provider),
   };
+}
+
+function getEmbeddingApiKey(provider: EmbeddingProviderType): string | undefined {
+  switch (provider) {
+    case 'openai':
+      return process.env.OPENAI_API_KEY;
+    case 'gemini':
+      return process.env.GEMINI_API_KEY;
+    default:
+      return undefined;
+  }
 }
 
 function getDefaultModel(provider: LLMProviderType): string {
@@ -44,6 +55,8 @@ function getDefaultModel(provider: LLMProviderType): string {
       return 'claude-sonnet-4-20250514';
     case 'openai':
       return 'gpt-4o';
+    case 'gemini':
+      return 'gemini-2.0-flash';
     case 'ollama':
       return 'deepseek-coder-v2';
     case 'custom':
@@ -55,6 +68,8 @@ function getDefaultEmbeddingModel(provider: EmbeddingProviderType): string {
   switch (provider) {
     case 'openai':
       return 'text-embedding-3-small';
+    case 'gemini':
+      return 'text-embedding-004';
     case 'ollama':
       return 'nomic-embed-text';
   }
@@ -66,6 +81,8 @@ function getApiKey(provider: LLMProviderType): string | undefined {
       return process.env.ANTHROPIC_API_KEY;
     case 'openai':
       return process.env.OPENAI_API_KEY;
+    case 'gemini':
+      return process.env.GEMINI_API_KEY;
     default:
       return undefined;
   }
