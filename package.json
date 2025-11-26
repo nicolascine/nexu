@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "ingest": "tsx scripts/ingest.ts",
-    "query": "tsx scripts/query.ts"
+    "query": "tsx scripts/query.ts",
+    "chat": "tsx scripts/chat.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
