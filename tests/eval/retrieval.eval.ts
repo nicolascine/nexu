@@ -1,5 +1,6 @@
 // Retrieval evaluation harness
 // Measures precision, recall, and MRR against ground-truth test cases
+// Usage: npm run eval [--real]  (--real uses OpenAI embeddings)
 
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, basename } from 'path';
@@ -7,23 +8,38 @@ import { createHash } from 'crypto';
 import { parseFile, type CodeChunk } from '../../src/lib/ast';
 import { buildGraph, attachChunksToGraph } from '../../src/lib/graph';
 import { createStore, addToStore, searchStore, graphExpand, type RetrievalResult } from '../../src/lib/retrieval';
+import { embed } from '../../src/lib/llm';
 import { TEST_CASES, type TestCase } from './test-cases';
 
+const USE_REAL_EMBEDDINGS = process.argv.includes('--real') || process.argv.includes('--ollama');
+const USE_OLLAMA = process.argv.includes('--ollama');
+const SKIP_GRAPH = process.argv.includes('--no-graph');
+
+// Set environment for Ollama if requested
+if (USE_OLLAMA) {
+  process.env.EMBEDDING_PROVIDER = 'ollama';
+}
+
 // Simple deterministic mock embedding for offline testing
-// Uses hash-based vectors that are consistent for the same input
 function mockEmbed(texts: string[], dimension: number = 384): number[][] {
   return texts.map(text => {
     const hash = createHash('sha256').update(text).digest();
     const vector: number[] = [];
     for (let i = 0; i < dimension; i++) {
-      // Use hash bytes cyclically to generate vector components
       const byte = hash[i % hash.length];
-      vector.push((byte / 255) * 2 - 1); // normalize to [-1, 1]
+      vector.push((byte / 255) * 2 - 1);
     }
-    // Normalize vector
     const norm = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0));
     return vector.map(v => v / norm);
   });
+}
+
+// embedding function - uses real or mock based on flag
+async function getEmbeddings(texts: string[]): Promise<number[][]> {
+  if (USE_REAL_EMBEDDINGS) {
+    return embed(texts);
+  }
+  return mockEmbed(texts);
 }
 
 const FIXTURES_PATH = join(__dirname, '../fixtures/sample-project/src');
@@ -98,6 +114,7 @@ async function runEvaluation(): Promise<EvalSummary> {
   console.log('╔═══════════════════════════════════════╗');
   console.log('║      Retrieval Evaluation             ║');
   console.log('╚═══════════════════════════════════════╝');
+  console.log(`  Mode: ${USE_REAL_EMBEDDINGS ? 'REAL embeddings (OpenAI)' : 'MOCK embeddings (offline)'}`);
   console.log('');
 
   // Step 1: Index the sample project
@@ -121,10 +138,11 @@ async function runEvaluation(): Promise<EvalSummary> {
   attachChunksToGraph(graph, allChunks);
   console.log(`  Built graph with ${graph.nodes.size} nodes`);
 
-  // Generate embeddings (using mock embeddings for offline testing)
-  console.log('  Generating mock embeddings...');
+  // Generate embeddings
+  const embeddingType = USE_OLLAMA ? 'Ollama (nomic-embed-text)' : USE_REAL_EMBEDDINGS ? 'real (OpenAI)' : 'mock';
+  console.log(`  Generating ${embeddingType} embeddings...`);
   const texts = allChunks.map(c => `${c.nodeType}: ${c.name}\n\n${c.content}`);
-  const embeddings = mockEmbed(texts);
+  const embeddings = await getEmbeddings(texts);
 
   // Create store
   const dimension = embeddings[0].length;
@@ -143,8 +161,8 @@ async function runEvaluation(): Promise<EvalSummary> {
   const results: EvalResult[] = [];
 
   for (const testCase of TEST_CASES) {
-    // Vector search (using mock embedding for query)
-    const [queryEmbedding] = mockEmbed([testCase.query]);
+    // Vector search
+    const [queryEmbedding] = await getEmbeddings([testCase.query]);
     const searchResults = searchStore(store, queryEmbedding, { topK: 5, minScore: 0 });
 
     const vectorResult: RetrievalResult = {
@@ -154,12 +172,14 @@ async function runEvaluation(): Promise<EvalSummary> {
       stage: 'vector',
     };
 
-    // Graph expansion
-    const expandedResult = graphExpand(vectorResult, graph, { maxHops: 1, maxExpandedChunks: 10 });
+    // Graph expansion (skip if --no-graph flag)
+    const finalResult = SKIP_GRAPH
+      ? vectorResult
+      : graphExpand(vectorResult, graph, { maxHops: 1, maxExpandedChunks: 10 });
 
     // Get retrieved file names and chunk names
-    const retrievedFiles = [...new Set(expandedResult.chunks.map(c => basename(c.filepath)))];
-    const retrievedChunks = expandedResult.chunks.map(c => c.name);
+    const retrievedFiles = [...new Set(finalResult.chunks.map(c => basename(c.filepath)))];
+    const retrievedChunks = finalResult.chunks.map(c => c.name);
 
     // Calculate metrics
     const precision = calcPrecision(retrievedFiles, testCase.expectedFiles);
