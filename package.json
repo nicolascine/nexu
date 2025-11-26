@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "ingest": "tsx scripts/ingest.ts",
     "query": "tsx scripts/query.ts",
-    "chat": "tsx scripts/chat.ts"
+    "chat": "tsx scripts/chat.ts",
+    "eval": "tsx tests/eval/retrieval.eval.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
