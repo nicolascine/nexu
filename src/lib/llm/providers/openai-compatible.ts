@@ -68,6 +68,7 @@ export class OpenAICompatibleProvider implements LLMProvider, EmbeddingProvider 
     const response = await this.client.embeddings.create({
       model: options.model || this.model,
       input,
+      encoding_format: 'float', // required for Ollama compatibility
     });
 
     return {
