@@ -1,33 +1,11 @@
 // Multi-language AST parsing and chunking using tree-sitter
-// NOTE: Python, Go, Rust support requires compatible tree-sitter versions
-// Currently only TypeScript/JavaScript is fully tested
 
 import Parser from 'tree-sitter';
 import TypeScript from 'tree-sitter-typescript';
+import Python from 'tree-sitter-python';
+import Go from 'tree-sitter-go';
+import Rust from 'tree-sitter-rust';
 import { createHash } from 'crypto';
-
-// Optional language imports - may fail due to version mismatches
-let Python: { language: unknown } | null = null;
-let Go: { language: unknown } | null = null;
-let Rust: { language: unknown } | null = null;
-
-try {
-  Python = require('tree-sitter-python');
-} catch {
-  // Python grammar not available
-}
-
-try {
-  Go = require('tree-sitter-go');
-} catch {
-  // Go grammar not available
-}
-
-try {
-  Rust = require('tree-sitter-rust');
-} catch {
-  // Rust grammar not available
-}
 
 export interface CodeChunk {
   id: string;
@@ -103,7 +81,7 @@ const LANGUAGE_CONFIGS: Record<Language, LanguageConfig> = {
   },
   python: {
     extensions: ['.py', '.pyi'],
-    grammar: Python?.language, // Python exports .language
+    grammar: Python, // use module directly
     chunkTypes: new Set([
       'function_definition',
       'async_function_definition',
@@ -121,7 +99,7 @@ const LANGUAGE_CONFIGS: Record<Language, LanguageConfig> = {
   },
   go: {
     extensions: ['.go'],
-    grammar: Go?.language, // Go exports .language
+    grammar: Go, // use module directly
     chunkTypes: new Set([
       'function_declaration',
       'method_declaration',
@@ -139,7 +117,7 @@ const LANGUAGE_CONFIGS: Record<Language, LanguageConfig> = {
   },
   rust: {
     extensions: ['.rs'],
-    grammar: Rust?.language, // Rust exports .language
+    grammar: Rust, // use module directly
     chunkTypes: new Set([
       'function_item',
       'impl_item',
