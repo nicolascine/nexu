@@ -3,11 +3,28 @@
 
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, basename } from 'path';
+import { createHash } from 'crypto';
 import { parseFile, type CodeChunk } from '../../src/lib/ast';
 import { buildGraph, attachChunksToGraph } from '../../src/lib/graph';
-import { createStore, addToStore, vectorSearch, graphExpand } from '../../src/lib/retrieval';
-import { embed } from '../../src/lib/llm';
+import { createStore, addToStore, searchStore, graphExpand, type RetrievalResult } from '../../src/lib/retrieval';
 import { TEST_CASES, type TestCase } from './test-cases';
+
+// Simple deterministic mock embedding for offline testing
+// Uses hash-based vectors that are consistent for the same input
+function mockEmbed(texts: string[], dimension: number = 384): number[][] {
+  return texts.map(text => {
+    const hash = createHash('sha256').update(text).digest();
+    const vector: number[] = [];
+    for (let i = 0; i < dimension; i++) {
+      // Use hash bytes cyclically to generate vector components
+      const byte = hash[i % hash.length];
+      vector.push((byte / 255) * 2 - 1); // normalize to [-1, 1]
+    }
+    // Normalize vector
+    const norm = Math.sqrt(vector.reduce((sum, v) => sum + v * v, 0));
+    return vector.map(v => v / norm);
+  });
+}
 
 const FIXTURES_PATH = join(__dirname, '../fixtures/sample-project/src');
 
@@ -104,10 +121,10 @@ async function runEvaluation(): Promise<EvalSummary> {
   attachChunksToGraph(graph, allChunks);
   console.log(`  Built graph with ${graph.nodes.size} nodes`);
 
-  // Generate embeddings
-  console.log('  Generating embeddings...');
+  // Generate embeddings (using mock embeddings for offline testing)
+  console.log('  Generating mock embeddings...');
   const texts = allChunks.map(c => `${c.nodeType}: ${c.name}\n\n${c.content}`);
-  const embeddings = await embed(texts);
+  const embeddings = mockEmbed(texts);
 
   // Create store
   const dimension = embeddings[0].length;
@@ -126,8 +143,16 @@ async function runEvaluation(): Promise<EvalSummary> {
   const results: EvalResult[] = [];
 
   for (const testCase of TEST_CASES) {
-    // Vector search
-    const vectorResult = await vectorSearch(store, testCase.query, { topK: 5 });
+    // Vector search (using mock embedding for query)
+    const [queryEmbedding] = mockEmbed([testCase.query]);
+    const searchResults = searchStore(store, queryEmbedding, { topK: 5, minScore: 0 });
+
+    const vectorResult: RetrievalResult = {
+      chunks: searchResults.map(r => r.entry.chunk),
+      scores: searchResults.map(r => r.score),
+      expandedFrom: [],
+      stage: 'vector',
+    };
 
     // Graph expansion
     const expandedResult = graphExpand(vectorResult, graph, { maxHops: 1, maxExpandedChunks: 10 });
