@@ -47,3 +47,6 @@ temp/
 
 # nexu indexed data
 .nexu/
+
+# claude code
+.claude/
