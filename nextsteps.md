@@ -28,7 +28,7 @@ Retrieval evaluation on nexu codebase (11 files, 98 chunks):
 - Prioritize type imports vs value imports
 
 ### 4. LLM Reranking
-- Enable reranking stage (currently available but not used in eval)
+- ✅ Reranking now available in eval via `--rerank` flag
 - Test different reranking prompts
 - Compare reranking cost vs quality improvement
 
@@ -55,6 +55,12 @@ npm run eval:nexu -- --ollama
 
 # Run without graph expansion
 npm run eval:nexu -- --ollama --no-graph
+
+# Run with LLM reranking (requires LLM_PROVIDER env)
+npm run eval:nexu -- --ollama --rerank
+
+# Full pipeline: embeddings + graph + rerank
+npm run eval:nexu -- --ollama --rerank
 
 # Interactive chat
 npm run chat
