@@ -4,11 +4,13 @@
 
 Retrieval evaluation on nexu codebase (11 files, 98 chunks):
 
-| Metric | Score |
-|--------|-------|
-| MRR | 83.3% |
-| Recall | 75.0% |
-| Precision | 54.2% |
+| Metric | Without Rerank | With Rerank (7B) |
+|--------|----------------|------------------|
+| MRR | 83.3% | 75.0% |
+| Recall | 75.0% | 58.3% |
+| Precision | 54.2% | 58.3% |
+
+**Finding:** Small local LLM (qwen2.5-coder:7b) hurts recall by incorrectly filtering relevant chunks. Precision improves slightly but not worth the recall drop. Larger models (Claude, GPT-4) may perform better.
 
 ## Improvements to Explore
 
@@ -28,9 +30,11 @@ Retrieval evaluation on nexu codebase (11 files, 98 chunks):
 - Prioritize type imports vs value imports
 
 ### 4. LLM Reranking
-- ✅ Reranking now available in eval via `--rerank` flag
-- Test different reranking prompts
-- Compare reranking cost vs quality improvement
+- ✅ Reranking available via `--rerank` flag
+- ⚠️ Local 7B model (qwen2.5-coder) hurts recall significantly
+- **Next:** Test with larger models (Claude, GPT-4)
+- **Next:** Tune reranking prompt for better chunk selection
+- **Next:** Consider rerank top-N parameter (currently 5)
 
 ### 5. Hybrid Search
 - Combine vector search with keyword/BM25 search
