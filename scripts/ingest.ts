@@ -1,7 +1,7 @@
 // Ingestion script for indexing a codebase
 // Usage: npm run ingest -- --path /path/to/codebase
 
-import { readFileSync, readdirSync, statSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, readdirSync, statSync, existsSync, mkdirSync, lstatSync } from 'fs';
 import { join, resolve, relative } from 'path';
 import { parseFile, getSupportedExtensions, type CodeChunk } from '../src/lib/ast';
 import { buildGraph, attachChunksToGraph, getGraphStats, type DependencyGraph } from '../src/lib/graph';
@@ -56,7 +56,17 @@ function findFiles(dir: string, extensions: string[]): string[] {
       if (IGNORE_DIRS.has(entry)) continue;
       if (IGNORE_FILES.has(entry)) continue;
 
-      const stat = statSync(fullPath);
+      // use lstatSync to handle symlinks, wrap in try-catch for broken symlinks
+      let stat;
+      try {
+        const lstat = lstatSync(fullPath);
+        // skip symlinks (may be broken or point outside repo)
+        if (lstat.isSymbolicLink()) continue;
+        stat = lstat;
+      } catch {
+        // skip files we can't stat (broken symlinks, permission issues)
+        continue;
+      }
 
       if (stat.isDirectory()) {
         walk(fullPath);
