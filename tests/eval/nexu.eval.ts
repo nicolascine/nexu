@@ -1,18 +1,19 @@
 // Evaluation harness for the nexu codebase itself
-// Usage: npm run eval:nexu [--ollama] [--no-graph]
+// Usage: npm run eval:nexu [--ollama] [--no-graph] [--rerank]
 
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, basename } from 'path';
 import { createHash } from 'crypto';
 import { parseFile, type CodeChunk } from '../../src/lib/ast';
 import { buildGraph, attachChunksToGraph } from '../../src/lib/graph';
-import { createStore, addToStore, searchStore, graphExpand, type RetrievalResult } from '../../src/lib/retrieval';
+import { createStore, addToStore, searchStore, graphExpand, rerank, type RetrievalResult } from '../../src/lib/retrieval';
 import { embed } from '../../src/lib/llm';
 import { NEXU_TEST_CASES, type TestCase } from './nexu-test-cases';
 
 const USE_REAL_EMBEDDINGS = process.argv.includes('--real') || process.argv.includes('--ollama');
 const USE_OLLAMA = process.argv.includes('--ollama');
 const SKIP_GRAPH = process.argv.includes('--no-graph');
+const USE_RERANK = process.argv.includes('--rerank');
 
 if (USE_OLLAMA) {
   process.env.EMBEDDING_PROVIDER = 'ollama';
@@ -104,7 +105,8 @@ async function runEvaluation(): Promise<EvalSummary> {
   console.log('╚═══════════════════════════════════════╝');
   const mode = USE_OLLAMA ? 'Ollama' : USE_REAL_EMBEDDINGS ? 'OpenAI' : 'Mock';
   const graphMode = SKIP_GRAPH ? 'disabled' : 'enabled';
-  console.log(`  Embeddings: ${mode} | Graph expansion: ${graphMode}`);
+  const rerankMode = USE_RERANK ? 'enabled' : 'disabled';
+  console.log(`  Embeddings: ${mode} | Graph: ${graphMode} | Rerank: ${rerankMode}`);
   console.log('');
 
   console.log('→ Indexing nexu codebase...');
@@ -154,9 +156,14 @@ async function runEvaluation(): Promise<EvalSummary> {
       stage: 'vector',
     };
 
-    const finalResult = SKIP_GRAPH
+    let finalResult = SKIP_GRAPH
       ? vectorResult
       : graphExpand(vectorResult, graph, { maxHops: 1, maxExpandedChunks: 10 });
+
+    // Stage 3: LLM reranking (if enabled)
+    if (USE_RERANK && finalResult.chunks.length > 5) {
+      finalResult = await rerank(testCase.query, finalResult, { rerankTopK: 5 });
+    }
 
     const retrievedFiles = [...new Set(finalResult.chunks.map(c => basename(c.filepath)))];
     const retrievedChunks = finalResult.chunks.map(c => c.name);

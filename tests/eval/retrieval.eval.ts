@@ -1,19 +1,20 @@
 // Retrieval evaluation harness
 // Measures precision, recall, and MRR against ground-truth test cases
-// Usage: npm run eval [--real]  (--real uses OpenAI embeddings)
+// Usage: npm run eval [--real] [--ollama] [--no-graph] [--rerank]
 
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, basename } from 'path';
 import { createHash } from 'crypto';
 import { parseFile, type CodeChunk } from '../../src/lib/ast';
 import { buildGraph, attachChunksToGraph } from '../../src/lib/graph';
-import { createStore, addToStore, searchStore, graphExpand, type RetrievalResult } from '../../src/lib/retrieval';
+import { createStore, addToStore, searchStore, graphExpand, rerank, type RetrievalResult } from '../../src/lib/retrieval';
 import { embed } from '../../src/lib/llm';
 import { TEST_CASES, type TestCase } from './test-cases';
 
 const USE_REAL_EMBEDDINGS = process.argv.includes('--real') || process.argv.includes('--ollama');
 const USE_OLLAMA = process.argv.includes('--ollama');
 const SKIP_GRAPH = process.argv.includes('--no-graph');
+const USE_RERANK = process.argv.includes('--rerank');
 
 // Set environment for Ollama if requested
 if (USE_OLLAMA) {
@@ -114,7 +115,10 @@ async function runEvaluation(): Promise<EvalSummary> {
   console.log('╔═══════════════════════════════════════╗');
   console.log('║      Retrieval Evaluation             ║');
   console.log('╚═══════════════════════════════════════╝');
-  console.log(`  Mode: ${USE_REAL_EMBEDDINGS ? 'REAL embeddings (OpenAI)' : 'MOCK embeddings (offline)'}`);
+  const mode = USE_OLLAMA ? 'Ollama' : USE_REAL_EMBEDDINGS ? 'OpenAI' : 'Mock';
+  const graphMode = SKIP_GRAPH ? 'disabled' : 'enabled';
+  const rerankMode = USE_RERANK ? 'enabled' : 'disabled';
+  console.log(`  Embeddings: ${mode} | Graph: ${graphMode} | Rerank: ${rerankMode}`);
   console.log('');
 
   // Step 1: Index the sample project
@@ -173,9 +177,14 @@ async function runEvaluation(): Promise<EvalSummary> {
     };
 
     // Graph expansion (skip if --no-graph flag)
-    const finalResult = SKIP_GRAPH
+    let finalResult = SKIP_GRAPH
       ? vectorResult
       : graphExpand(vectorResult, graph, { maxHops: 1, maxExpandedChunks: 10 });
+
+    // Stage 3: LLM reranking (if enabled)
+    if (USE_RERANK && finalResult.chunks.length > 5) {
+      finalResult = await rerank(testCase.query, finalResult, { rerankTopK: 5 });
+    }
 
     // Get retrieved file names and chunk names
     const retrievedFiles = [...new Set(finalResult.chunks.map(c => basename(c.filepath)))];
