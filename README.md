@@ -2,9 +2,103 @@
 
 RAG for codebases. AST-aware chunking + graph expansion.
 
+> Technical challenge: Build a chat interface to query large codebases (cal.com monorepo, ~500k LOC) without exceeding LLM context limits.
+
 ## the problem
 
-LLMs have token limits. Cal.com has ~500k LOC. The question isn't "how do we fit all the code?" - it's "how do we retrieve exactly what matters?"
+LLMs have token limits. Cal.com has ~500k LOC across 6000+ TypeScript files. The question isn't "how do we fit all the code?" - it's "how do we retrieve exactly what matters?"
+
+## how nexu solves the context limit
+
+### ingestion pipeline (offline)
+
+```mermaid
+flowchart LR
+    subgraph Input
+        A[cal.com repo<br/>6000+ files]
+    end
+
+    subgraph Processing
+        B[tree-sitter<br/>parsing]
+        C[AST-based<br/>chunking]
+        D[metadata<br/>extraction]
+    end
+
+    subgraph Storage
+        E[vector embeddings]
+        F[dependency graph]
+    end
+
+    A --> B --> C --> D
+    D --> E
+    D --> F
+
+    style C fill:#f9f,stroke:#333
+```
+
+> **Key insight:** Chunks respect syntactic boundaries (functions, classes). Never break code mid-statement. Each chunk is a complete semantic unit.
+
+### retrieval pipeline (online)
+
+```mermaid
+flowchart LR
+    subgraph Query
+        Q["Where is availability<br/>validated?"]
+    end
+
+    subgraph "Stage 1: Search"
+        VS[Vector Search<br/>top 10 chunks]
+    end
+
+    subgraph "Stage 2: Expand"
+        GE[Graph Expansion<br/>+imports/exports]
+    end
+
+    subgraph "Stage 3: Rerank"
+        RR[LLM Reranking<br/>top 5 chunks]
+    end
+
+    subgraph Response
+        CTX[~5k tokens<br/>2.5% of context]
+        LLM[Claude]
+        ANS[Answer +<br/>Citations]
+    end
+
+    Q --> VS --> GE --> RR --> CTX --> LLM --> ANS
+
+    style RR fill:#f9f,stroke:#333
+    style CTX fill:#9f9,stroke:#333
+```
+
+> **Key insight:** Graph expansion follows imports/exports to add related code. LLM reranking filters noise. Result: precise, minimal context.
+
+### why this works
+
+1. **AST chunking** - Code is divided at function/class boundaries, never mid-statement
+2. **Dependency graph** - When you find `isAvailableHandler`, automatically include its imports
+3. **Two-stage retrieval** - Vector search finds candidates, LLM reranking picks the best
+4. **Lean context** - 5-10k tokens is the sweet spot; more tokens = more noise
+
+## quick start
+
+```bash
+# 1. clone and install
+git clone https://github.com/nicolascine/nexu
+cd nexu && pnpm install
+
+# 2. configure (see .env.example)
+cp .env.example .env.local
+# add your ANTHROPIC_API_KEY and OPENAI_API_KEY
+
+# 3. index cal.com
+git clone --depth 1 https://github.com/calcom/cal.com /tmp/cal.com
+npm run ingest -- --path /tmp/cal.com
+
+# 4. query
+npm run chat
+# or single query:
+npm run query -- "Where is availability validated?"
+```
 
 ## approach
 
@@ -91,19 +185,9 @@ vendor lock-in free by design.
 
 ## architecture
 
-```
-query → semantic search (vector) → top chunks
-                                       ↓
-                              graph expansion (imports/exports)
-                                       ↓
-                              LLM reranking
-                                       ↓
-                              ~5-10k tokens → claude
-                                       ↓
-                              response + citations
-```
+See [how nexu solves the context limit](#how-nexu-solves-the-context-limit) for visual diagrams.
 
-see `docs/architecture.md` for implementation details.
+For implementation details, see `docs/architecture.md`.
 
 ## comparison
 
