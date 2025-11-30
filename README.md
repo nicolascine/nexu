@@ -344,6 +344,20 @@ OPENAI_API_KEY=sk-...
 DATABASE_URL=postgresql://...
 ```
 
+## web ui
+
+nexu includes a built-in chat interface at `http://localhost:3000`:
+
+- streaming responses with real-time output
+- source code display with syntax highlighting
+- expandable code chunks showing retrieved context
+- status badge showing indexed chunk count
+
+```bash
+npm run dev
+# open http://localhost:3000
+```
+
 ## dev
 
 ```bash
@@ -365,6 +379,43 @@ ollama pull nomic-embed-text
 # update .env.local to use ollama
 # then run normally
 pnpm dev
+```
+
+### docker-compose (local pgvector)
+
+For a production-like local environment with PostgreSQL + pgvector:
+
+```bash
+# start postgres with pgvector
+docker-compose up -d
+
+# configure to use pgvector
+export VECTOR_STORE_TYPE=pgvector
+export DATABASE_URL=postgresql://nexu:nexu@localhost:5432/nexu
+
+# ingest with pgvector
+npm run ingest -- --path /tmp/cal.com
+
+# run the app
+npm run dev
+```
+
+### vector store options
+
+nexu supports two vector store backends:
+
+| store | use case | config |
+|-------|----------|--------|
+| JSON | quick tests, development | `VECTOR_STORE_TYPE=json` (default) |
+| pgvector | production, docker, Supabase | `VECTOR_STORE_TYPE=pgvector` |
+
+```bash
+# JSON store (default) - stores in .nexu/vectors.json
+VECTOR_STORE_TYPE=json
+
+# pgvector - requires DATABASE_URL
+VECTOR_STORE_TYPE=pgvector
+DATABASE_URL=postgresql://nexu:nexu@localhost:5432/nexu
 ```
 
 ## docs
