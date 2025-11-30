@@ -25,32 +25,111 @@ export interface DependencyGraph {
   reverseEdges: Map<string, Set<string>>;
 }
 
+// workspace package mappings (detected or configured)
+let workspacePackages: Map<string, string> | null = null;
+
+// detect workspace packages from project structure
+function detectWorkspacePackages(projectRoot: string): Map<string, string> {
+  const packages = new Map<string, string>();
+  const fs = require('fs');
+  const path = require('path');
+
+  // common workspace directories
+  const workspaceDirs = ['packages', 'apps', 'libs', 'modules'];
+
+  for (const dir of workspaceDirs) {
+    const fullPath = path.join(projectRoot, dir);
+    if (fs.existsSync(fullPath)) {
+      try {
+        const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            // check for package.json to get package name
+            const pkgJsonPath = path.join(fullPath, entry.name, 'package.json');
+            if (fs.existsSync(pkgJsonPath)) {
+              try {
+                const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+                if (pkgJson.name) {
+                  packages.set(pkgJson.name, path.join(fullPath, entry.name));
+                }
+              } catch {
+                // couldn't read package.json, skip
+              }
+            }
+          }
+        }
+      } catch {
+        // couldn't read directory, skip
+      }
+    }
+  }
+
+  return packages;
+}
+
 // resolve a relative import path to absolute
 function resolveImportPath(fromFile: string, importPath: string, projectRoot: string): string | null {
-  // skip external packages
+  // initialize workspace packages on first call
+  if (workspacePackages === null) {
+    workspacePackages = detectWorkspacePackages(projectRoot);
+  }
+
+  // handle workspace packages (e.g., @calcom/lib, @scope/package)
+  if (importPath.startsWith('@')) {
+    // try exact match first
+    if (workspacePackages.has(importPath)) {
+      const pkgPath = workspacePackages.get(importPath)!;
+      return tryResolveFile(pkgPath, projectRoot);
+    }
+
+    // try resolving subpath (e.g., @calcom/lib/utils -> packages/lib/utils)
+    const parts = importPath.split('/');
+    const scopedName = parts.slice(0, 2).join('/'); // @scope/name
+    if (workspacePackages.has(scopedName)) {
+      const pkgPath = workspacePackages.get(scopedName)!;
+      const subPath = parts.slice(2).join('/');
+      const fullPath = subPath ? resolve(pkgPath, subPath) : pkgPath;
+      return tryResolveFile(fullPath, projectRoot);
+    }
+
+    // external scoped package - skip
+    return null;
+  }
+
+  // skip other external packages (no . or / prefix)
   if (!importPath.startsWith('.') && !importPath.startsWith('/')) {
     return null;
   }
 
   const fromDir = dirname(fromFile);
-  let resolved = resolve(fromDir, importPath);
+  const resolved = resolve(fromDir, importPath);
 
-  // try adding extensions if not present
+  return tryResolveFile(resolved, projectRoot);
+}
+
+// try to resolve a path to an actual file
+function tryResolveFile(basePath: string, projectRoot: string): string | null {
   const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
-  if (!extensions.some(ext => resolved.endsWith(ext))) {
-    // could be a directory import (index.ts) or missing extension
-    for (const ext of extensions) {
-      const withExt = resolved + ext;
-      const indexFile = resolve(resolved, `index${ext}`);
-      // return normalized relative path
-      if (withExt.startsWith(projectRoot)) return withExt;
-      if (indexFile.startsWith(projectRoot)) return indexFile;
-    }
-    // fallback to .ts
-    resolved = resolved + '.ts';
+
+  // if already has extension
+  if (extensions.some(ext => basePath.endsWith(ext))) {
+    return basePath.startsWith(projectRoot) ? basePath : null;
   }
 
-  return resolved;
+  // try adding extensions
+  for (const ext of extensions) {
+    const withExt = basePath + ext;
+    if (withExt.startsWith(projectRoot)) return withExt;
+  }
+
+  // try index files
+  for (const ext of extensions) {
+    const indexFile = resolve(basePath, `index${ext}`);
+    if (indexFile.startsWith(projectRoot)) return indexFile;
+  }
+
+  // fallback to .ts
+  return basePath + '.ts';
 }
 
 // extract imports from code content using regex (fast, for initial graph building)
@@ -368,4 +447,17 @@ export function getGraphStats(graph: DependencyGraph): {
     avgImportsPerFile: totalFiles > 0 ? totalImports / totalFiles : 0,
     avgDependentsPerFile: totalFiles > 0 ? totalDependents / totalFiles : 0,
   };
+}
+
+// reset workspace packages cache (call when switching projects)
+export function resetWorkspaceCache(): void {
+  workspacePackages = null;
+}
+
+// get detected workspace packages (for debugging)
+export function getWorkspacePackages(projectRoot: string): Map<string, string> {
+  if (workspacePackages === null) {
+    workspacePackages = detectWorkspacePackages(projectRoot);
+  }
+  return new Map(workspacePackages);
 }
