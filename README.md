@@ -202,6 +202,18 @@ For implementation details, see `docs/architecture.md`.
 
 We tested nexu on the [cal.com](https://github.com/calcom/cal.com) monorepo - the target codebase for this technical challenge.
 
+### setup
+
+| component | configuration |
+|-----------|---------------|
+| Environment | Local (MacBook Pro M3) |
+| Embeddings | `nomic-embed-text` via Ollama |
+| LLM | `deepseek-coder-v2` via Ollama |
+| Reranking | LLM-based (same model) |
+| Vector store | Local JSON file |
+
+> **Note:** For production, we recommend OpenAI `text-embedding-3-small` for embeddings and Claude Sonnet 4.5 or GPT-5 for generation. Local models were used to demonstrate the system works fully offline.
+
 ### indexing results
 
 | metric | value |
@@ -211,7 +223,7 @@ We tested nexu on the [cal.com](https://github.com/calcom/cal.com) monorepo - th
 | Graph edges | 11,812 |
 | Avg imports/file | 1.8 |
 | Index size | 287 MB |
-| Indexing time | ~45 min (local Ollama) |
+| Indexing time | ~45 min (Ollama embeddings) |
 
 ### query test
 
