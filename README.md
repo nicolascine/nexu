@@ -198,6 +198,47 @@ For implementation details, see `docs/architecture.md`.
 | **nexu (AST + graph)** | **5-10k tokens** | **high** | **low** |
 | agentic (with tools) | variable (50-150k) | medium | very high |
 
+## experiment: cal.com monorepo
+
+We tested nexu on the [cal.com](https://github.com/calcom/cal.com) monorepo - the target codebase for this technical challenge.
+
+### indexing results
+
+| metric | value |
+|--------|-------|
+| TypeScript files | 6,451 |
+| Chunks extracted | 25,868 |
+| Graph edges | 11,812 |
+| Avg imports/file | 1.8 |
+| Index size | 287 MB |
+| Indexing time | ~45 min (local Ollama) |
+
+### query test
+
+**Query:** "Where is availability validated?"
+
+**System response:**
+> Availability validation occurs primarily within the function `getUserAvailability` located in:
+> `packages/features/availability/lib/getUserAvailability.ts`
+
+**Verification:** The file exists (24KB) and contains:
+- Zod schema validation (`availabilitySchema`)
+- Imports from `getBusyTimesFromLimits`, `getWorkingHours`
+- Date range validation with `DateOverride`, `WorkingHours`
+- Integration with `BookingRepository`
+
+### performance
+
+| metric | value |
+|--------|-------|
+| Chunks retrieved | 5 |
+| Retrieval stage | reranked |
+| Tokens used | 2,943 |
+| Response time | ~30s (local LLM) |
+| Context usage | 1.5% of 200k window |
+
+The system correctly identified the core availability validation logic without hallucinating file paths or inventing code.
+
 ## limitations
 
 - **broad queries** - "explain the whole architecture" needs multiple queries
