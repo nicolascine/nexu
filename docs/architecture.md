@@ -386,6 +386,145 @@ Key metrics:
 - LLM invents files
 - Mitigation: Post-process to validate cited paths exist
 
+## API Layer
+
+nexu exposes a REST API designed for multiple frontends.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                           FRONTENDS                              │
+├─────────────────────────────────────────────────────────────────┤
+│  React Web App │ Electron Desktop │ Ink CLI │ VSCode Plugin     │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             │ HTTP API
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      NEXT.JS API ROUTES                          │
+├─────────────────────────────────────────────────────────────────┤
+│  /api/chat (streaming)  │  /api/search  │  /api/status          │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                 CORE SERVICE (src/lib/nexu)                      │
+├─────────────────────────────────────────────────────────────────┤
+│  initIndex()  │  search()  │  chat()  │  chatStream()           │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+           ┌─────────────────┼─────────────────┐
+           ▼                 ▼                 ▼
+    ┌────────────┐    ┌────────────┐    ┌────────────┐
+    │ Retrieval  │    │   Graph    │    │    LLM     │
+    │   Layer    │    │   Layer    │    │   Layer    │
+    └────────────┘    └────────────┘    └────────────┘
+```
+
+### Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/chat` | POST | Streaming chat, Vercel AI SDK compatible |
+| `/api/search` | POST | Retrieval only, returns chunks |
+| `/api/status` | GET | Index status and configuration |
+
+### Core Service (src/lib/nexu)
+
+The core service provides a unified API for all frontends:
+
+```typescript
+// Initialize and cache the index
+initIndex(): { store, graph, meta }
+
+// Get system status
+getStatus(): NexuStatus
+
+// Search (retrieval only)
+search(request: SearchRequest): Promise<SearchResponse>
+
+// Chat with generation (non-streaming)
+chat(request: ChatRequest): Promise<ChatResponse>
+
+// Chat with generation (streaming)
+chatStream(request: ChatRequest): AsyncIterable<string>
+```
+
+### Chat API Request/Response
+
+**Request:**
+```typescript
+{
+  messages: [
+    { role: "user", content: "Where is availability validated?" }
+  ],
+  options: {
+    topK: 10,
+    reranker: "llm" | "bge" | "none",
+    expandGraph: true
+  }
+}
+```
+
+**Response (streaming):**
+- Vercel AI SDK compatible streaming format
+- Sends chunk metadata first, then streams text
+- Format: `0:"text chunk"\n` for text, `2:[{type:"chunks",data:[...]}]\n` for metadata
+
+### Search API Request/Response
+
+**Request:**
+```typescript
+{
+  query: "availability validation",
+  options: {
+    topK: 10,
+    reranker: "llm",
+    expandGraph: true
+  }
+}
+```
+
+**Response:**
+```typescript
+{
+  query: "availability validation",
+  chunks: [
+    {
+      filepath: "/tmp/cal.com/packages/features/availability/...",
+      startLine: 45,
+      endLine: 120,
+      nodeType: "function",
+      name: "getUserAvailability",
+      content: "...",
+      score: 0.89,
+      language: "typescript"
+    }
+  ],
+  stage: "reranked",
+  count: 5
+}
+```
+
+### Vercel AI SDK Integration
+
+The `/api/chat` endpoint is compatible with Vercel AI SDK's `useChat` hook:
+
+```typescript
+import { useChat } from 'ai/react';
+
+function Chat() {
+  const { messages, input, handleSubmit, handleInputChange } = useChat({
+    api: '/api/chat'
+  });
+
+  return (
+    // ... chat UI
+  );
+}
+```
+
 ## Testing Strategy
 
 **Unit tests:**

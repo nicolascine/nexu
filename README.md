@@ -189,6 +189,61 @@ See [how nexu solves the context limit](#how-nexu-solves-the-context-limit) for 
 
 For implementation details, see `docs/architecture.md`.
 
+### API layer
+
+nexu exposes a REST API designed for multiple frontends (React web, Electron, CLI, VSCode plugin).
+
+```mermaid
+flowchart TB
+    subgraph Frontends
+        WEB[React Web App]
+        ELECTRON[Electron Desktop]
+        CLI[Ink CLI]
+        VSCODE[VSCode Plugin]
+    end
+
+    subgraph "Next.js API Routes"
+        CHAT["/api/chat<br/>(streaming)"]
+        SEARCH["/api/search"]
+        STATUS["/api/status"]
+    end
+
+    subgraph "Core Service (src/lib/nexu)"
+        INIT[initIndex]
+        SRCH[search]
+        GEN[chat / chatStream]
+    end
+
+    subgraph "Processing Layers"
+        RET[Retrieval<br/>vector + graph]
+        LLM[LLM<br/>generation]
+    end
+
+    WEB --> CHAT
+    ELECTRON --> CHAT
+    CLI --> SEARCH
+    VSCODE --> SEARCH
+
+    CHAT --> GEN
+    SEARCH --> SRCH
+    STATUS --> INIT
+
+    GEN --> RET
+    GEN --> LLM
+    SRCH --> RET
+
+    style CHAT fill:#f9f,stroke:#333
+    style GEN fill:#9f9,stroke:#333
+```
+
+**endpoints:**
+
+| endpoint | method | description |
+|----------|--------|-------------|
+| `/api/chat` | POST | Streaming chat (Vercel AI SDK compatible) |
+| `/api/search` | POST | Retrieval only, returns chunks |
+| `/api/status` | GET | Index status and configuration |
+
 ## comparison
 
 | approach | context used | precision | cost |
