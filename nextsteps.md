@@ -4,13 +4,16 @@
 
 Retrieval evaluation on nexu codebase (11 files, 98 chunks):
 
-| Metric | Without Rerank | With Rerank (7B) |
-|--------|----------------|------------------|
-| MRR | 83.3% | 75.0% |
-| Recall | 75.0% | 58.3% |
-| Precision | 54.2% | 58.3% |
+| Metric | No Rerank | qwen2.5-coder:7b | deepseek-coder-v2 |
+|--------|-----------|------------------|-------------------|
+| MRR | 83.3% | 75.0% | 75.0% |
+| Recall | 75.0% | 58.3% | 66.7% |
+| Precision | 54.2% | 58.3% | **62.5%** |
 
-**Finding:** Small local LLM (qwen2.5-coder:7b) hurts recall by incorrectly filtering relevant chunks. Precision improves slightly but not worth the recall drop. Larger models (Claude, GPT-4) may perform better.
+**Findings:**
+- Small 7B model hurts recall significantly (-16.7%) for minimal precision gain (+4.1%)
+- DeepSeek-Coder-V2 (16B) achieves better balance: +8.3% precision, -8.3% recall
+- Larger models recommended for production reranking
 
 ## Improvements to Explore
 
@@ -31,10 +34,10 @@ Retrieval evaluation on nexu codebase (11 files, 98 chunks):
 
 ### 4. LLM Reranking
 - ✅ Reranking available via `--rerank` flag
-- ⚠️ Local 7B model (qwen2.5-coder) hurts recall significantly
-- **Next:** Test with larger models (Claude, GPT-4)
+- ⚠️ 7B models hurt recall significantly
+- ✅ DeepSeek-Coder-V2 (16B) works well: `LLM_MODEL=deepseek-coder-v2`
+- **Next:** Test with Claude/GPT-4 API for comparison
 - **Next:** Tune reranking prompt for better chunk selection
-- **Next:** Consider rerank top-N parameter (currently 5)
 
 ### 5. Hybrid Search
 - Combine vector search with keyword/BM25 search
