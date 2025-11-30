@@ -1,25 +1,25 @@
 # UI/UX - Nexu
 
-Diseño de interfaz para codebase chat.
+Interface design for codebase chat.
 
-## Filosofía de diseño
+## Design Philosophy
 
-**Objetivo:** Hacker-first, no consumer-friendly.
+**Goal:** Hacker-first, not consumer-friendly.
 
-**Principios:**
-1. **Information density** - No esconder información técnica
+**Principles:**
+1. **Information density** - Don't hide technical information
 2. **Speed** - Keyboard-first, minimal clicks
-3. **Transparency** - Mostrar el "cómo" detrás de las respuestas
-4. **Citations** - Links directos a código siempre visibles
+3. **Transparency** - Show the "how" behind the answers
+4. **Citations** - Direct links to code always visible
 
-**Referencias:**
+**References:**
 - Linear (issue tracking)
 - Warp (terminal)
 - Cursor (code editor)
 
-Todos priorizan velocidad y densidad de información.
+All prioritize speed and information density.
 
-## Componentes principales
+## Main Components
 
 ### 1. Chat Interface
 
@@ -57,26 +57,26 @@ Todos priorizan velocidad y densidad de información.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Detalles:**
+**Details:**
 
-**Mensajes de usuario:**
-- Fondo sutilmente diferente
-- Mono font para queries técnicas
-- Timestamp (relativo: "2m ago")
+**User messages:**
+- Subtly different background
+- Mono font for technical queries
+- Timestamp (relative: "2m ago")
 
-**Respuestas de Nexu:**
+**Nexu responses:**
 - Markdown rendering
-- Syntax highlighting para code snippets
-- Citations inline con hover state
+- Syntax highlighting for code snippets
+- Inline citations with hover state
 
 **Streaming:**
-- Token-by-token como ChatGPT
-- Cursor parpadeante en el token actual
-- Citations aparecen al final del stream
+- Token-by-token like ChatGPT
+- Blinking cursor on current token
+- Citations appear at end of stream
 
 ### 2. Citation Cards
 
-**Objetivo:** Mostrar fuente exacta del código referenciado.
+**Goal:** Show exact source of referenced code.
 
 **Design:**
 ```
@@ -98,21 +98,21 @@ Todos priorizan velocidad y densidad de información.
 
 **States:**
 
-- **Collapsed** (default): 5 líneas de preview
-- **Expanded**: Código completo con scroll
-- **Hover**: Highlight border
+- **Collapsed** (default): 5 lines of preview
+- **Expanded**: Full code with scroll
+- **Hover**: Highlighted border
 
 **Actions:**
 
-- Click "View in GitHub" → Abre GitHub en esas líneas exactas
-- "Copy path" → Clipboard con path relativo
+- Click "View in GitHub" → Opens GitHub at exact lines
+- "Copy path" → Clipboard with relative path
 - "Expand full" → Show entire function/class
 
 ### 3. Retrieval Transparency (Debug mode)
 
-**Toggle en settings:** "Show retrieval details"
+**Toggle in settings:** "Show retrieval details"
 
-Cuando está ON, mostrar:
+When ON, show:
 ```
 ┌─────────────────────────────────────────────────────┐
 │ 🔍 Retrieval Details                                │
@@ -138,10 +138,10 @@ Cuando está ON, mostrar:
 └─────────────────────────────────────────────────────┘
 ```
 
-**Por qué importante:**
-- Usuarios técnicos quieren saber "cómo" funciona
-- Debugging cuando respuestas son incorrectas
-- Confianza en el sistema
+**Why important:**
+- Technical users want to know "how" it works
+- Debugging when answers are incorrect
+- Trust in the system
 
 ### 4. Search/Index Status
 
@@ -150,7 +150,7 @@ Cuando está ON, mostrar:
 [●] cal.com indexed | 15,234 chunks | Last update: 2h ago [↻ Re-index]
 ```
 
-**Click → Modal con detalles:**
+**Click → Modal with details:**
 ```
 ┌─────────────────────────────────────────────────────┐
 │ Repository Index Status                             │
@@ -180,7 +180,7 @@ Cuando está ON, mostrar:
 
 ### 5. Keyboard Shortcuts
 
-Hackers aman keyboards:
+Hackers love keyboards:
 
 | Shortcut | Action |
 |----------|--------|
@@ -192,7 +192,7 @@ Hackers aman keyboards:
 | `⌘R` | Retry last query |
 | `⌘N` | New chat |
 
-**Show shortcuts:** `?` key → Modal con cheatsheet
+**Show shortcuts:** `?` key → Modal with cheatsheet
 
 ### 6. Empty State
 
@@ -304,7 +304,7 @@ Error: #F85149
 **Fonts:**
 
 - **UI Text:** Inter (clean, modern)
-- **Code:** JetBrains Mono (popular con devs)
+- **Code:** JetBrains Mono (popular with devs)
 - **Monospace data:** SF Mono (numbers, paths)
 
 **Sizes:**
@@ -317,16 +317,16 @@ Error: #F85149
 
 **Desktop (primary):**
 - Full chat interface
-- Citations side-by-side con chat si espacio permite
+- Citations side-by-side with chat if space permits
 
 **Tablet:**
-- Stack citations debajo de mensajes
-- Reducir padding
+- Stack citations below messages
+- Reduce padding
 
 **Mobile:**
-- Not a priority (hackers usan laptops)
-- But: hacer básicamente funcional
-- Citations como accordions
+- Not a priority (hackers use laptops)
+- But: make it basically functional
+- Citations as accordions
 
 ## Animations
 
@@ -337,33 +337,33 @@ Error: #F85149
 - Hover states: Instant (no delay)
 - Loading: Subtle pulse
 
-**No animations complejas** - distraen del contenido.
+**No complex animations** - they distract from the content.
 
 ## Accessibility
 
 **Keyboard navigation:**
-- Tab order lógico
-- Focus indicators claros
-- Todos los actions accesibles sin mouse
+- Logical tab order
+- Clear focus indicators
+- All actions accessible without mouse
 
 **Screen readers:**
-- ARIA labels en iconos
+- ARIA labels on icons
 - Semantic HTML
-- Alt text en elementos visuales
+- Alt text on visual elements
 
 **Contrast:**
-- WCAG AA mínimo
-- AAA para texto crítico
+- WCAG AA minimum
+- AAA for critical text
 
 ## Component Library
 
-**Use shadcn/ui como base:**
-- Ya tiene componentes accesibles
-- Customizable con Tailwind
+**Use shadcn/ui as base:**
+- Already has accessible components
+- Customizable with Tailwind
 - Tree-shakeable
 
 **Custom components:**
-- `<CitationCard />` - Las citation cards
+- `<CitationCard />` - The citation cards
 - `<CodeBlock />` - Syntax highlighted code
 - `<RetrievalDebug />` - Debug panel
 - `<IndexStatus />` - Index status indicator
@@ -373,10 +373,10 @@ Error: #F85149
 ### Flow 1: First time user
 
 1. Land on nexu.sh
-2. See empty state con ejemplos
-3. Click ejemplo → Query sent
-4. Stream response con citations
-5. Click citation → Ver código en GitHub
+2. See empty state with examples
+3. Click example → Query sent
+4. Stream response with citations
+5. Click citation → View code on GitHub
 6. Ask follow-up question
 
 ### Flow 2: Power user
@@ -387,13 +387,13 @@ Error: #F85149
 4. `⌘D` → Toggle debug panel
 5. See retrieval details
 6. `⌘1` → Jump to first citation
-7. Adjust settings para refinar
+7. Adjust settings to refine
 
 ### Flow 3: No results
 
 1. User asks obscure query
 2. System finds no good matches
-3. Show "No results" state con suggestions
+3. Show "No results" state with suggestions
 4. User refines query
 5. Better results
 
@@ -408,22 +408,22 @@ Error: #F85149
 
 **Optimizations:**
 
-- Code splitting (Next.js automático)
+- Code splitting (Next.js automatic)
 - Lazy load citation code previews
-- Stream response para perceived speed
+- Stream response for perceived speed
 - Cache common queries
 
 ## Testing
 
 **Manual testing checklist:**
 
-- [ ] Citations link correctamente a GitHub
-- [ ] Keyboard shortcuts funcionan
-- [ ] Streaming no tiene flickering
-- [ ] Error states se muestran apropiadamente
-- [ ] Mobile es usable (básico)
-- [ ] Dark mode está correcto
-- [ ] Settings persisten en localStorage
+- [ ] Citations link correctly to GitHub
+- [ ] Keyboard shortcuts work
+- [ ] Streaming has no flickering
+- [ ] Error states display appropriately
+- [ ] Mobile is usable (basic)
+- [ ] Dark mode is correct
+- [ ] Settings persist in localStorage
 
 **Automated:**
 
@@ -431,31 +431,31 @@ Error: #F85149
 - Accessibility audits (axe)
 - Performance budgets (Lighthouse CI)
 
-## Iterations futuras
+## Future Iterations
 
 **Post-MVP:**
 
-1. **File tree browser** - Explorar repo visualmente
-2. **Multi-turn context** - Mantener contexto entre queries
-3. **Compare mode** - Comparar múltiples chunks lado a lado
-4. **Export chat** - Markdown/PDF de conversación
-5. **Shareable links** - Link a chat específico
+1. **File tree browser** - Explore repo visually
+2. **Multi-turn context** - Maintain context between queries
+3. **Compare mode** - Compare multiple chunks side by side
+4. **Export chat** - Markdown/PDF of conversation
+5. **Shareable links** - Link to specific chat
 
-**Más adelante:**
+**Later:**
 
-- Soporte para repos privados (auth)
-- Multiple repos simultáneos
+- Support for private repos (auth)
+- Multiple repos simultaneously
 - Custom indexing rules
-- API pública
+- Public API
 
-## Conclusión
+## Conclusion
 
-UI debe ser:
-- **Rápida** - No friction entre pensamiento y ejecución
-- **Transparente** - Mostrar el "cómo", no esconderlo
-- **Dense** - Info máxima en mínimo espacio
-- **Citable** - Enlaces directos a fuentes siempre
+UI should be:
+- **Fast** - No friction between thought and execution
+- **Transparent** - Show the "how", don't hide it
+- **Dense** - Maximum info in minimum space
+- **Citable** - Direct links to sources always
 
-Inspiración: Tools que hackers aman (Linear, Warp, Cursor)
+Inspiration: Tools that hackers love (Linear, Warp, Cursor)
 
-No consumer-friendly, **developer-first**.
+Not consumer-friendly, **developer-first**.

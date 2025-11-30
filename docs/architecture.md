@@ -1,6 +1,6 @@
-# Arquitectura - Nexu
+# Architecture - Nexu
 
-Diseño técnico del sistema RAG para codebases.
+Technical design of the RAG system for codebases.
 
 ## Overview
 ```
@@ -60,102 +60,102 @@ Diseño técnico del sistema RAG para codebases.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Componentes
+## Components
 
 ### 1. AST Parser
 
-**Objetivo:** Dividir código en chunks semánticamente completos.
+**Goal:** Divide code into semantically complete chunks.
 
-**Implementación:**
-- Usa `tree-sitter` para parsear código
-- Soporta TypeScript, JavaScript, Python (extensible)
-- Identifica nodos: functions, classes, interfaces, types
+**Implementation:**
+- Uses `tree-sitter` to parse code
+- Supports TypeScript, JavaScript, Python (extensible)
+- Identifies nodes: functions, classes, interfaces, types
 
-**Algoritmo de chunking:**
+**Chunking algorithm:**
 
-Basado en el paper cAST (CMU 2025):
+Based on the cAST paper (CMU 2025):
 
-1. Parsear archivo completo en AST
-2. Traversal top-down del árbol
-3. Para cada nodo de alto nivel (function, class):
-   - Si tamaño < MAX_CHUNK_SIZE: crear chunk
-   - Si tamaño > MAX_CHUNK_SIZE: recursivamente dividir
-4. Merge de nodos pequeños adyacentes
-5. Añadir contexto (imports, class definition)
+1. Parse complete file into AST
+2. Top-down tree traversal
+3. For each high-level node (function, class):
+   - If size < MAX_CHUNK_SIZE: create chunk
+   - If size > MAX_CHUNK_SIZE: recursively divide
+4. Merge small adjacent nodes
+5. Add context (imports, class definition)
 
-**Parámetros:**
-- `MAX_CHUNK_SIZE`: 512 tokens (balanceado para embeddings)
-- `MIN_CHUNK_SIZE`: 50 tokens (evitar chunks triviales)
-- `OVERLAP`: 0 tokens (AST ya provee boundaries limpios)
+**Parameters:**
+- `MAX_CHUNK_SIZE`: 512 tokens (balanced for embeddings)
+- `MIN_CHUNK_SIZE`: 50 tokens (avoid trivial chunks)
+- `OVERLAP`: 0 tokens (AST already provides clean boundaries)
 
-**Metadata extraída por chunk:**
+**Metadata extracted per chunk:**
 ```typescript
 interface CodeChunk {
   id: string;
-  content: string;          // El código del chunk
-  filepath: string;         // Path relativo desde repo root
+  content: string;          // The chunk's code
+  filepath: string;         // Relative path from repo root
   startLine: number;
   endLine: number;
   nodeType: 'function' | 'class' | 'interface' | 'type' | 'other';
-  name: string;             // Nombre de la función/clase
-  imports: string[];        // Imports usados en este chunk
-  exports: string[];        // Qué exporta este chunk
-  types: string[];          // Tipos referenciados
-  package: string;          // Para monorepos: @calcom/web, @calcom/api, etc.
+  name: string;             // Function/class name
+  imports: string[];        // Imports used in this chunk
+  exports: string[];        // What this chunk exports
+  types: string[];          // Referenced types
+  package: string;          // For monorepos: @calcom/web, @calcom/api, etc.
 }
 ```
 
 ### 2. Dependency Graph
 
-**Objetivo:** Mapear relaciones entre archivos/funciones.
+**Goal:** Map relationships between files/functions.
 
-**Estructura:**
+**Structure:**
 ```typescript
 interface DependencyNode {
   filepath: string;
-  exports: string[];        // Qué exporta este archivo
-  imports: Import[];        // Qué importa
+  exports: string[];        // What this file exports
+  imports: Import[];        // What it imports
 }
 
 interface Import {
-  symbol: string;           // Nombre importado
-  from: string;             // Path del archivo fuente
-  line: number;             // Línea de import
+  symbol: string;           // Imported name
+  from: string;             // Source file path
+  line: number;             // Import line
 }
 
 interface DependencyGraph {
   nodes: Map<string, DependencyNode>;
-  edges: Map<string, Set<string>>;  // filepath -> dependencias
+  edges: Map<string, Set<string>>;  // filepath -> dependencies
 }
 ```
 
-**Construcción:**
+**Construction:**
 
-1. Para cada archivo en el repo:
-   - Extraer imports con AST
-   - Extraer exports con AST
-   - Resolver paths relativos → absolutos
-2. Construir grafo dirigido
-3. Indexar para búsqueda rápida
+1. For each file in repo:
+   - Extract imports with AST
+   - Extract exports with AST
+   - Resolve relative paths → absolute
+2. Build directed graph
+3. Index for fast lookup
 
-**Queries soportadas:**
+**Supported queries:**
 
-- `getImports(filepath)` - Qué importa este archivo
-- `getExports(filepath)` - Qué exporta este archivo
-- `getDependents(filepath)` - Quién usa este archivo
-- `getTransitiveDeps(filepath, depth)` - Dependencias recursivas
+- `getImports(filepath)` - What this file imports
+- `getExports(filepath)` - What this file exports
+- `getDependents(filepath)` - Who uses this file
+- `getTransitiveDeps(filepath, depth)` - Recursive dependencies
 
 ### 3. Vector Search
 
 **Embedding model:** OpenAI `text-embedding-3-small`
-- Dimensiones: 1536
-- Costo: $0.02 / 1M tokens
-- Performance: buena para código
+- Dimensions: 1536
+- Cost: $0.02 / 1M tokens
+- Performance: good for code
 
 **Vector DB:** Pinecone
-- Free tier: 100k vectors (suficiente para cal.com)
-- Latencia: ~50-100ms
-- Metadata filtering nativo
+- Free tier: 100k vectors (enough for cal.com)
+- Latency: ~50-100ms
+- Native metadata filtering
 
 **Index structure:**
 ```
@@ -172,23 +172,23 @@ Vector record:
     nodeType: string,
     name: string,
     package: string,
-    content: string  // Para debugging, opcional
+    content: string  // For debugging, optional
   }
 }
 ```
 
 **Query process:**
 
-1. User query → Embed con mismo modelo
+1. User query → Embed with same model
 2. Pinecone similarity search
-3. Retrieve Top K (K=10) con metadata
-4. Return chunks ordenados por score
+3. Retrieve Top K (K=10) with metadata
+4. Return chunks sorted by score
 
-**Alternativa:** Supabase pgvector
-- Gratis hasta cierto punto
-- SQL familiar
-- Postgres nativo
-- Latencia: ~100-200ms
+**Alternative:** Supabase pgvector
+- Free up to a point
+- Familiar SQL
+- Native Postgres
+- Latency: ~100-200ms
 
 ### 4. Retrieval Strategy
 
@@ -200,7 +200,7 @@ Output: Top 10 chunks (raw)
 Process:
 1. Embed query
 2. Vector similarity search
-3. Return chunks con score > 0.7
+3. Return chunks with score > 0.7
 ```
 
 **Stage 2: Graph Expansion**
@@ -210,45 +210,45 @@ Output: Expanded context (~15-20 chunks)
 
 Process:
 For each chunk:
-  1. Si es función/método:
-     - Añadir definición de clase (si aplica)
-     - Añadir tipos de parámetros
-     - Añadir imports directos
-  2. Si es type/interface:
-     - Añadir usos de este tipo
-  3. Si es clase:
-     - Añadir métodos principales
+  1. If function/method:
+     - Add class definition (if applicable)
+     - Add parameter types
+     - Add direct imports
+  2. If type/interface:
+     - Add usages of this type
+  3. If class:
+     - Add main methods
 ```
 
 **Stage 3: LLM Reranking**
 ```
-Input: ~15-20 chunks expandidos
-Output: Top 3-5 chunks finales
+Input: ~15-20 expanded chunks
+Output: Top 3-5 final chunks
 
 Process:
-1. Prompt al LLM (Claude):
+1. Prompt to LLM (Claude):
    "Given query: {query}
     Rank these code chunks by relevance.
     Return only the indices of top 5."
-   
-2. Contexto reducido:
-   - Solo firmas de funciones
-   - Solo primeras 5 líneas de cada chunk
+
+2. Reduced context:
+   - Only function signatures
+   - Only first 5 lines of each chunk
    - Total: ~2k tokens
 
-3. LLM retorna: [2, 7, 1, 9, 4]
+3. LLM returns: [2, 7, 1, 9, 4]
 
-4. Seleccionar esos chunks completos
+4. Select those complete chunks
 ```
 
-**Resultado final:**
-- 3-5 chunks (el más relevante)
+**Final result:**
+- 3-5 chunks (most relevant)
 - Total: 5-10k tokens
-- Incluye metadata para citación
+- Includes metadata for citation
 
 ### 5. Context Construction
 
-**Objetivo:** Armar el contexto óptimo para el LLM.
+**Goal:** Build optimal context for LLM.
 
 **Template:**
 ```
@@ -265,7 +265,7 @@ Type: {nodeType}
 
 {content}
 
-[Imports usado aquí: {imports}]
+[Imports used here: {imports}]
 [Exports: {exports}]
 
 --- Chunk 2 ---
@@ -284,13 +284,13 @@ If information is not in the provided code, say so.
 </query>
 ```
 
-**Estimación de tokens:**
+**Token estimation:**
 - Template overhead: ~200 tokens
 - 5 chunks × 1000 tokens: 5000 tokens
 - Metadata: ~300 tokens
 - **Total context:** ~5500 tokens
 
-Dentro del sweet spot de Claude (200k).
+Within Claude's sweet spot (200k).
 
 ### 6. LLM Integration
 
@@ -301,16 +301,16 @@ Dentro del sweet spot de Claude (200k).
 
 **Prompt engineering:**
 
-System prompt enfatiza:
-1. Citar siempre con path + líneas
-2. No inventar código que no está en contexto
-3. Si no sabe, decir "no encontrado en chunks provistos"
-4. Usar formato específico para citaciones
+System prompt emphasizes:
+1. Always cite with path + lines
+2. Don't invent code not in context
+3. If unknown, say "not found in provided chunks"
+4. Use specific format for citations
 
 **Streaming:**
-- Usar Vercel AI SDK para streaming
-- UI muestra respuesta token-by-token
-- Mejor UX vs. esperar respuesta completa
+- Use Vercel AI SDK for streaming
+- UI shows response token-by-token
+- Better UX vs. waiting for complete response
 
 ## Data Flow
 
@@ -328,79 +328,79 @@ User → Embed → Vector Search → Graph Expand → Rerank → Context → LLM
                                                                    UI (stream)
 ```
 
-## Optimizaciones
+## Optimizations
 
 ### 1. Caching
 
-- **Embeddings cache:** Evitar re-embedir mismo código
-- **Graph cache:** Grafo de dependencias en memoria
-- **LLM cache:** Anthropic prompt caching para system prompts repetidos
+- **Embeddings cache:** Avoid re-embedding same code
+- **Graph cache:** Dependency graph in memory
+- **LLM cache:** Anthropic prompt caching for repeated system prompts
 
 ### 2. Batching
 
-Para ingestion:
-- Procesar 100 archivos a la vez
-- Batch embeddings (OpenAI permite hasta 2048 inputs)
-- Batch upsert a Pinecone
+For ingestion:
+- Process 100 files at a time
+- Batch embeddings (OpenAI allows up to 2048 inputs)
+- Batch upsert to Pinecone
 
 ### 3. Monitoring
 
-Métricas clave:
+Key metrics:
 - **Retrieval latency:** Vector search time
-- **Token usage:** Input + output por query
-- **Cache hit rate:** % queries que usan cache
+- **Token usage:** Input + output per query
+- **Cache hit rate:** % queries using cache
 - **User satisfaction:** Thumbs up/down
 
-## Escalabilidad
+## Scalability
 
 **Cal.com stats:**
-- ~500k líneas de código
-- ~2000 archivos TypeScript
-- Estimado: ~15k chunks
+- ~500k lines of code
+- ~2000 TypeScript files
+- Estimated: ~15k chunks
 
-**Capacidades:**
+**Capabilities:**
 - Pinecone free tier: 100k vectors ✅
 - Ingestion time: ~15-20 mins (one-time)
 - Query latency: <2s (p95)
 
-**Para repos más grandes:**
-- Usar Pinecone paid tier
-- Sharding por package en monorepos
-- Filtrado por metadata (package, file type)
+**For larger repos:**
+- Use Pinecone paid tier
+- Sharding by package in monorepos
+- Filter by metadata (package, file type)
 
 ## Failure Modes
 
-**1. Query muy amplia:**
-- "Explícame toda la arquitectura"
-- Mitigación: Detectar y sugerir queries más específicas
+**1. Query too broad:**
+- "Explain the entire architecture"
+- Mitigation: Detect and suggest more specific queries
 
 **2. Graph explosion:**
-- Archivo con 50 imports
-- Mitigación: Limitar depth de expansion a 2 niveles
+- File with 50 imports
+- Mitigation: Limit expansion depth to 2 levels
 
-**3. Código no parseado:**
-- Archivos no-código (JSON, MD)
-- Mitigación: Skip en AST parser, usar chunking simple
+**3. Unparsed code:**
+- Non-code files (JSON, MD)
+- Mitigation: Skip in AST parser, use simple chunking
 
-**4. Alucinación de paths:**
-- LLM inventa archivos
-- Mitigación: Post-process para validar paths citados existen
+**4. Path hallucination:**
+- LLM invents files
+- Mitigation: Post-process to validate cited paths exist
 
 ## Testing Strategy
 
 **Unit tests:**
-- AST parser con archivos sintéticos
-- Graph builder con repos pequeños
-- Retrieval con queries conocidas
+- AST parser with synthetic files
+- Graph builder with small repos
+- Retrieval with known queries
 
 **Integration tests:**
 - End-to-end: query → response
-- Validar citaciones son correctas
-- Medir latency
+- Validate citations are correct
+- Measure latency
 
 **Evaluation:**
-- Dataset de 50 queries sobre cal.com
-- Ground truth: archivo + líneas correctas
-- Métricas: Precision@1, Recall@5
+- Dataset of 50 queries about cal.com
+- Ground truth: correct file + lines
+- Metrics: Precision@1, Recall@5
 
-Ver `SCIENCE.md` para evaluación rigurosa.
+See `science.md` for rigorous evaluation.
