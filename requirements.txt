@@ -1,0 +1,4 @@
+# Python dependencies for nexu reranking
+# Install with: pip install -r requirements.txt
+
+FlagEmbedding>=1.3.0

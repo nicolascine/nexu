@@ -14,7 +14,14 @@ import { TEST_CASES, type TestCase } from './test-cases';
 const USE_REAL_EMBEDDINGS = process.argv.includes('--real') || process.argv.includes('--ollama');
 const USE_OLLAMA = process.argv.includes('--ollama');
 const SKIP_GRAPH = process.argv.includes('--no-graph');
-const USE_RERANK = process.argv.includes('--rerank');
+
+// Reranker options: --rerank (bge default), --reranker=bge, --reranker=llm
+const RERANKER_ARG = process.argv.find(arg => arg.startsWith('--reranker='));
+const RERANKER: 'bge' | 'llm' | 'none' = RERANKER_ARG
+  ? (RERANKER_ARG.split('=')[1] as 'bge' | 'llm')
+  : process.argv.includes('--rerank')
+    ? 'bge'  // --rerank defaults to bge
+    : 'none';
 
 // Set environment for Ollama if requested
 if (USE_OLLAMA) {
@@ -118,7 +125,7 @@ async function runEvaluation(): Promise<EvalSummary> {
   console.log('╚═══════════════════════════════════════╝');
   const mode = USE_OLLAMA ? 'Ollama' : USE_REAL_EMBEDDINGS ? 'OpenAI' : 'Mock';
   const graphMode = SKIP_GRAPH ? 'disabled' : 'enabled';
-  const rerankMode = USE_RERANK ? 'enabled' : 'disabled';
+  const rerankMode = RERANKER === 'none' ? 'disabled' : RERANKER;
   console.log(`  Embeddings: ${mode} | Graph: ${graphMode} | Rerank: ${rerankMode}`);
   console.log('');
 
@@ -182,9 +189,9 @@ async function runEvaluation(): Promise<EvalSummary> {
       ? vectorResult
       : graphExpand(vectorResult, graph, { maxHops: 1, maxExpandedChunks: 10 });
 
-    // Stage 3: LLM reranking (if enabled)
-    if (USE_RERANK && finalResult.chunks.length > 5) {
-      finalResult = await rerank(testCase.query, finalResult, { rerankTopK: 5 });
+    // Stage 3: Reranking (if enabled)
+    if (RERANKER !== 'none' && finalResult.chunks.length > 5) {
+      finalResult = await rerank(testCase.query, finalResult, { reranker: RERANKER, rerankTopK: 5 });
     }
 
     // Get retrieved file names and chunk names

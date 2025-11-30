@@ -15,10 +15,12 @@ const STORE_FILE = join(DATA_DIR, 'vectors.json');
 const GRAPH_FILE = join(DATA_DIR, 'graph.json');
 const META_FILE = join(DATA_DIR, 'meta.json');
 
+import type { RerankerType } from '../src/lib/retrieval';
+
 interface QueryOptions {
   query: string;
   topK: number;
-  rerank: boolean;
+  reranker: RerankerType;
   expandGraph: boolean;
   verbose: boolean;
 }
@@ -94,7 +96,7 @@ async function main() {
   const options: QueryOptions = {
     query: queryParts.join(' '),
     topK: topKIdx >= 0 ? parseInt(args[topKIdx + 1], 10) : 5,
-    rerank: noRerankIdx < 0,
+    reranker: noRerankIdx < 0 ? 'llm' : 'none',
     expandGraph: noExpandIdx < 0,
     verbose: verboseIdx >= 0,
   };
@@ -149,7 +151,7 @@ async function main() {
   if (graph && options.expandGraph) {
     result = await retrieve(store, graph, options.query, {
       topK: 10,
-      rerank: options.rerank,
+      reranker: options.reranker,
       rerankTopK: options.topK,
       expandGraph: true,
       maxHops: 2,

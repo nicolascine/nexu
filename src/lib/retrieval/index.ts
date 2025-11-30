@@ -1,5 +1,7 @@
-// Retrieval pipeline: vector search → graph expansion → LLM reranking
+// Retrieval pipeline: vector search → graph expansion → reranking
 
+import { spawn } from 'child_process';
+import { join } from 'path';
 import type { CodeChunk } from '../ast';
 import type { DependencyGraph } from '../graph';
 import { getExpandedChunks } from '../graph';
@@ -17,6 +19,8 @@ export interface RetrievalResult {
   stage: 'vector' | 'graph' | 'reranked';
 }
 
+export type RerankerType = 'bge' | 'llm' | 'none';
+
 export interface RetrievalOptions {
   // vector search options
   topK?: number;
@@ -26,7 +30,7 @@ export interface RetrievalOptions {
   maxHops?: number;
   maxExpandedChunks?: number;
   // reranking options
-  rerank?: boolean;
+  reranker?: RerankerType;
   rerankTopK?: number;
 }
 
@@ -36,7 +40,7 @@ const DEFAULT_OPTIONS: Required<RetrievalOptions> = {
   expandGraph: true,
   maxHops: 2,
   maxExpandedChunks: 20,
-  rerank: true,
+  reranker: 'bge',  // default to fast BGE reranker
   rerankTopK: 5,
 };
 
@@ -97,8 +101,79 @@ export function graphExpand(
   };
 }
 
-// stage 3: LLM reranking
-export async function rerank(
+// stage 3a: BGE reranking (fast, dedicated reranker)
+async function bgeRerank(
+  query: string,
+  result: RetrievalResult,
+  options: Pick<RetrievalOptions, 'rerankTopK'> = {}
+): Promise<RetrievalResult> {
+  const { rerankTopK = DEFAULT_OPTIONS.rerankTopK } = options;
+
+  if (result.chunks.length === 0 || result.chunks.length <= rerankTopK) {
+    return { ...result, stage: 'reranked' };
+  }
+
+  // prepare passages for reranker
+  const passages = result.chunks.map(
+    chunk => `${chunk.filepath}:${chunk.startLine}-${chunk.endLine} (${chunk.nodeType}: ${chunk.name})\n${chunk.content}`
+  );
+
+  return new Promise((resolve) => {
+    const scriptPath = join(__dirname, '../../../scripts/rerank.py');
+    const proc = spawn('python3', [scriptPath]);
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    proc.on('close', (code) => {
+      if (code !== 0 || !stdout.trim()) {
+        console.warn('BGE rerank failed, falling back to vector scores:', stderr);
+        resolve({
+          chunks: result.chunks.slice(0, rerankTopK),
+          scores: result.scores.slice(0, rerankTopK),
+          expandedFrom: result.expandedFrom,
+          stage: 'reranked',
+        });
+        return;
+      }
+
+      try {
+        const scores: number[] = JSON.parse(stdout);
+
+        // create index-score pairs and sort by score descending
+        const ranked = result.chunks
+          .map((chunk, i) => ({ chunk, score: scores[i] ?? 0, originalScore: result.scores[i] }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, rerankTopK);
+
+        resolve({
+          chunks: ranked.map(r => r.chunk),
+          scores: ranked.map(r => r.score),
+          expandedFrom: result.expandedFrom,
+          stage: 'reranked',
+        });
+      } catch (err) {
+        console.warn('Failed to parse BGE scores:', err);
+        resolve({
+          chunks: result.chunks.slice(0, rerankTopK),
+          scores: result.scores.slice(0, rerankTopK),
+          expandedFrom: result.expandedFrom,
+          stage: 'reranked',
+        });
+      }
+    });
+
+    // send input to Python script
+    proc.stdin.write(JSON.stringify({ query, passages }));
+    proc.stdin.end();
+  });
+}
+
+// stage 3b: LLM reranking (slower, uses chat model)
+export async function llmRerank(
   query: string,
   result: RetrievalResult,
   options: Pick<RetrievalOptions, 'rerankTopK'> = {}
@@ -187,6 +262,25 @@ Your response (JSON array only):`;
   }
 }
 
+// unified rerank dispatcher
+export async function rerank(
+  query: string,
+  result: RetrievalResult,
+  options: Pick<RetrievalOptions, 'reranker' | 'rerankTopK'> = {}
+): Promise<RetrievalResult> {
+  const reranker = options.reranker ?? DEFAULT_OPTIONS.reranker;
+
+  if (reranker === 'none') {
+    return { ...result, stage: 'reranked' };
+  }
+
+  if (reranker === 'bge') {
+    return bgeRerank(query, result, options);
+  }
+
+  return llmRerank(query, result, options);
+}
+
 // full retrieval pipeline
 export async function retrieve(
   store: VectorStore,
@@ -215,8 +309,9 @@ export async function retrieve(
   }
 
   // stage 3: reranking
-  if (opts.rerank) {
+  if (opts.reranker !== 'none') {
     result = await rerank(query, result, {
+      reranker: opts.reranker,
       rerankTopK: opts.rerankTopK,
     });
   }

@@ -240,7 +240,7 @@ async function main() {
         if (graph) {
           result = await retrieve(store, graph, trimmed, {
             topK: 10,
-            rerank: true,
+            reranker: 'llm',
             rerankTopK: 5,
             expandGraph: true,
             maxHops: 2,

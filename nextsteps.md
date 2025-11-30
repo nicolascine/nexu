@@ -4,16 +4,17 @@
 
 Retrieval evaluation on nexu codebase (11 files, 98 chunks):
 
-| Metric | No Rerank | qwen2.5-coder:7b | deepseek-coder-v2 |
-|--------|-----------|------------------|-------------------|
-| MRR | 83.3% | 75.0% | 75.0% |
-| Recall | 75.0% | 58.3% | 66.7% |
-| Precision | 54.2% | 58.3% | **62.5%** |
+| Metric | No Rerank | BGE Reranker | qwen2.5:7b | deepseek-coder-v2 |
+|--------|-----------|--------------|------------|-------------------|
+| MRR | **83.3%** | 70.8% | 75.0% | 75.0% |
+| Recall | **75.0%** | 58.3% | 58.3% | 66.7% |
+| Precision | 54.2% | 54.2% | 58.3% | **62.5%** |
 
 **Findings:**
-- Small 7B model hurts recall significantly (-16.7%) for minimal precision gain (+4.1%)
-- DeepSeek-Coder-V2 (16B) achieves better balance: +8.3% precision, -8.3% recall
-- Larger models recommended for production reranking
+- BGE reranker (general-purpose) doesn't help for code - same precision, worse recall
+- Small 7B LLM hurts recall significantly (-16.7%) for minimal precision gain
+- DeepSeek-Coder-V2 (code-specialized) best: +8.3% precision, -8.3% recall
+- **Recommendation:** Use code-specialized LLM for reranking, or skip it
 
 ## Improvements to Explore
 
@@ -32,12 +33,13 @@ Retrieval evaluation on nexu codebase (11 files, 98 chunks):
 - Weight edges by import frequency
 - Prioritize type imports vs value imports
 
-### 4. LLM Reranking
-- ✅ Reranking available via `--rerank` flag
-- ⚠️ 7B models hurt recall significantly
-- ✅ DeepSeek-Coder-V2 (16B) works well: `LLM_MODEL=deepseek-coder-v2`
-- **Next:** Test with Claude/GPT-4 API for comparison
-- **Next:** Tune reranking prompt for better chunk selection
+### 4. Reranking
+- ✅ Multiple rerankers available: `--reranker=bge`, `--reranker=llm`
+- ⚠️ BGE (general-purpose) doesn't help for code
+- ⚠️ 7B LLMs hurt recall significantly
+- ✅ DeepSeek-Coder-V2 (16B) works well: `--reranker=llm`
+- **Next:** Try code-specific rerankers (if available)
+- **Next:** Focus on improving embeddings instead
 
 ### 5. Hybrid Search
 - Combine vector search with keyword/BM25 search
