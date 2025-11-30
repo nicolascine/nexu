@@ -19,6 +19,7 @@ const USE_RERANK = process.argv.includes('--rerank');
 // Set environment for Ollama if requested
 if (USE_OLLAMA) {
   process.env.EMBEDDING_PROVIDER = 'ollama';
+  process.env.LLM_PROVIDER = 'ollama';
 }
 
 // Simple deterministic mock embedding for offline testing

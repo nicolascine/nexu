@@ -17,6 +17,7 @@ const USE_RERANK = process.argv.includes('--rerank');
 
 if (USE_OLLAMA) {
   process.env.EMBEDDING_PROVIDER = 'ollama';
+  process.env.LLM_PROVIDER = 'ollama';
 }
 
 function mockEmbed(texts: string[], dimension: number = 384): number[][] {
