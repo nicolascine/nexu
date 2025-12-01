@@ -31,32 +31,17 @@ export class PgVectorStore implements IVectorStore {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    // Dynamic import pg and dns
+    // Dynamic import pg
     const pg = await import('pg');
-    const dns = await import('dns');
     Pool = pg.Pool;
-
-    // Custom lookup that prefers IPv6 (for Supabase IPv6-only hosts)
-    // @ts-ignore - Complex types for dns.lookup overloads
-    const lookup: typeof dns.lookup = (hostname: string, options: any, callback: any) => {
-      const opts = typeof options === 'object' ? options : { family: options };
-      const cb = typeof options === 'function' ? options : callback;
-
-      dns.lookup(hostname, { ...opts, family: 6 }, ((err: any, address: any, family: any) => {
-        if (err) {
-          // Fallback to IPv4 if IPv6 fails
-          dns.lookup(hostname, { ...opts, family: 4 }, cb);
-        } else {
-          cb(err, address, family);
-        }
-      }) as any);
-    };
 
     this.pool = new Pool({
       connectionString: this.connectionString,
       ssl: { rejectUnauthorized: false },
-      // @ts-ignore - lookup is not in PoolConfig types but works
-      lookup,
+      // Pooler mode settings
+      max: 5,
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 10000,
     });
 
     // Test connection
