@@ -28,6 +28,7 @@ const REPOS_DIR = join(DATA_DIR, 'repos');
 const STORE_FILE = join(DATA_DIR, 'vectors.json');
 const GRAPH_FILE = join(DATA_DIR, 'graph.json');
 const META_FILE = join(DATA_DIR, 'meta.json');
+const CHECKPOINT_DIR = join(DATA_DIR, 'checkpoints');
 
 // ignore patterns
 const IGNORE_DIRS = new Set([
@@ -48,6 +49,50 @@ interface IngestOptions {
   verbose: boolean;
   prod: boolean;
   clean: boolean;
+  resume: boolean;
+}
+
+interface Checkpoint {
+  repositoryId: string;
+  entries: Array<{ id: string; embedding: number[]; chunk: CodeChunk; repositoryId: string }>;
+  processedChunkIds: Set<string>;
+  timestamp: string;
+}
+
+function getCheckpointPath(repositoryId: string): string {
+  return join(CHECKPOINT_DIR, `${repositoryId.replace(/[/:]/g, '_')}.json`);
+}
+
+function saveCheckpoint(checkpoint: Checkpoint): void {
+  if (!existsSync(CHECKPOINT_DIR)) {
+    mkdirSync(CHECKPOINT_DIR, { recursive: true });
+  }
+  const data = {
+    ...checkpoint,
+    processedChunkIds: Array.from(checkpoint.processedChunkIds),
+  };
+  writeFileSync(getCheckpointPath(checkpoint.repositoryId), JSON.stringify(data), 'utf-8');
+}
+
+function loadCheckpoint(repositoryId: string): Checkpoint | null {
+  const path = getCheckpointPath(repositoryId);
+  if (!existsSync(path)) return null;
+  try {
+    const data = JSON.parse(readFileSync(path, 'utf-8'));
+    return {
+      ...data,
+      processedChunkIds: new Set(data.processedChunkIds),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearCheckpoint(repositoryId: string): void {
+  const path = getCheckpointPath(repositoryId);
+  if (existsSync(path)) {
+    rmSync(path);
+  }
 }
 
 function findFiles(dir: string, extensions: string[]): string[] {
@@ -226,7 +271,7 @@ async function saveToPgVector(
       await client.query('DELETE FROM graph_edges WHERE from_file LIKE $1', [`${repositoryId}:%`]);
       await client.query('DELETE FROM graph_nodes WHERE filepath LIKE $1', [`${repositoryId}:%`]);
 
-      // insert chunks
+      // insert chunks (upsert to handle duplicates)
       for (const entry of entries) {
         const embeddingStr = `[${entry.embedding.join(',')}]`;
         await client.query(`
@@ -234,6 +279,19 @@ async function saveToPgVector(
             id, filepath, start_line, end_line, node_type, name, language,
             content, imports, exports, types, embedding, repository_id
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::vector, $13)
+          ON CONFLICT (id) DO UPDATE SET
+            filepath = EXCLUDED.filepath,
+            start_line = EXCLUDED.start_line,
+            end_line = EXCLUDED.end_line,
+            node_type = EXCLUDED.node_type,
+            name = EXCLUDED.name,
+            language = EXCLUDED.language,
+            content = EXCLUDED.content,
+            imports = EXCLUDED.imports,
+            exports = EXCLUDED.exports,
+            types = EXCLUDED.types,
+            embedding = EXCLUDED.embedding,
+            repository_id = EXCLUDED.repository_id
         `, [
           entry.id,
           entry.chunk.filepath,
@@ -310,6 +368,7 @@ async function main() {
     verbose: hasFlag('verbose'),
     prod: hasFlag('prod'),
     clean: hasFlag('clean'),
+    resume: hasFlag('resume'),
   };
 
   if (!options.path && !options.repo) {
@@ -325,6 +384,7 @@ async function main() {
     console.log('  --batch-size <n>    Embedding batch size (default: 10)');
     console.log('  --verbose           Show detailed progress');
     console.log('  --clean             Remove cloned repo after indexing');
+    console.log('  --resume            Resume from last checkpoint');
     process.exit(1);
   }
 
@@ -465,10 +525,46 @@ async function main() {
   console.log(`  Model: ${embeddingConfig.model}`);
 
   const dimension = getEmbeddingDimension(embeddingConfig.model);
-  const entries: Array<{ id: string; embedding: number[]; chunk: CodeChunk; repositoryId: string }> = [];
+  let entries: Array<{ id: string; embedding: number[]; chunk: CodeChunk; repositoryId: string }> = [];
+  let processedChunkIds = new Set<string>();
 
-  const batches = batch(allChunks, options.batchSize);
-  let processedChunks = 0;
+  // Check for checkpoint if resuming
+  const repoIdForCheckpoint = repositoryId || 'local';
+  if (options.resume) {
+    const checkpoint = loadCheckpoint(repoIdForCheckpoint);
+    if (checkpoint) {
+      entries = checkpoint.entries;
+      processedChunkIds = checkpoint.processedChunkIds;
+      console.log(`  ✓ Resuming from checkpoint (${entries.length} embeddings cached)`);
+      console.log(`  Checkpoint from: ${checkpoint.timestamp}`);
+    } else {
+      console.log('  No checkpoint found, starting fresh');
+    }
+  }
+
+  // Truncate chunks that exceed token limit
+  // OpenAI text-embedding-3-small has 8192 token limit for the ENTIRE batch
+  // With batch size 10, each chunk should be ~800 tokens max (~3000 chars)
+  // Use conservative limit to account for nodeType/name prefix overhead
+  const MAX_CHUNK_CHARS = 2500;
+  const truncatedChunks = allChunks.map(chunk => {
+    if (chunk.content.length > MAX_CHUNK_CHARS) {
+      return { ...chunk, content: chunk.content.slice(0, MAX_CHUNK_CHARS) + '\n// ... truncated' };
+    }
+    return chunk;
+  });
+
+  // Filter out already processed chunks
+  const remainingChunks = truncatedChunks.filter(c => !processedChunkIds.has(c.id));
+  const skippedCount = truncatedChunks.length - remainingChunks.length;
+  if (skippedCount > 0) {
+    console.log(`  Skipping ${skippedCount} already embedded chunks`);
+  }
+
+  const batches = batch(remainingChunks, options.batchSize);
+  let processedChunks = skippedCount;
+  let batchesSinceCheckpoint = 0;
+  const CHECKPOINT_INTERVAL = 50; // save checkpoint every 50 batches
 
   for (let i = 0; i < batches.length; i++) {
     const chunkBatch = batches[i];
@@ -484,13 +580,35 @@ async function main() {
           chunk: chunkBatch[j],
           repositoryId: repositoryId || 'local',
         });
+        processedChunkIds.add(chunkBatch[j].id);
       }
 
       processedChunks += chunkBatch.length;
+      batchesSinceCheckpoint++;
+
+      // Save checkpoint periodically
+      if (batchesSinceCheckpoint >= CHECKPOINT_INTERVAL) {
+        saveCheckpoint({
+          repositoryId: repoIdForCheckpoint,
+          entries,
+          processedChunkIds,
+          timestamp: new Date().toISOString(),
+        });
+        batchesSinceCheckpoint = 0;
+      }
+
       const progress = Math.round((processedChunks / allChunks.length) * 100);
       process.stdout.write(`\r  Progress: ${progress}% (${processedChunks}/${allChunks.length})`);
     } catch (error) {
+      // Save checkpoint on error so we can resume
+      saveCheckpoint({
+        repositoryId: repoIdForCheckpoint,
+        entries,
+        processedChunkIds,
+        timestamp: new Date().toISOString(),
+      });
       console.error(`\n  Error embedding batch ${i + 1}: ${error}`);
+      console.log(`  Checkpoint saved. Use --resume to continue.`);
     }
   }
 
@@ -506,6 +624,8 @@ async function main() {
       chunkCount: entries.length,
       fileCount: files.length - parseErrors,
     });
+    // Clear checkpoint after successful save
+    clearCheckpoint(repoIdForCheckpoint);
   } else {
     const store = {
       dimension,
@@ -521,6 +641,8 @@ async function main() {
       config: { embeddingProvider: embeddingConfig.provider, embeddingModel: embeddingConfig.model },
     };
     await saveToJson(store, graph, meta);
+    // Clear checkpoint after successful save
+    clearCheckpoint(repoIdForCheckpoint);
   }
 
   // cleanup cloned repo if requested
