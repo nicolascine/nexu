@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Settings, Info, Network, ArrowLeft, Square } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Settings, Network, ArrowLeft, Square } from "lucide-react";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { IndexStatus } from "@/components/IndexStatus";
-import { RetrievalDebug } from "@/components/RetrievalDebug";
 import { CodeGraph } from "@/components/CodeGraph";
 import { CodeThemeSelector } from "@/components/CodeThemeSelector";
 import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
@@ -13,12 +13,23 @@ import { EmptyState } from "@/components/EmptyState";
 import { useNexuChat, getMessageContent } from "@/hooks/use-chat";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { getRepositories } from "@/lib/api";
 
 type ViewMode = "chat" | "graph";
 
+function formatTimeAgo(date: string): string {
+  const now = new Date();
+  const then = new Date(date);
+  const diffMs = now.getTime() - then.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays > 0) return `${diffDays}d ago`;
+  if (diffHours > 0) return `${diffHours}h ago`;
+  return "just now";
+}
+
 const Chat = () => {
   const { codebaseId } = useParams();
-  const [showDebug, setShowDebug] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("chat");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -26,13 +37,22 @@ const Chat = () => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  // Fetch repository data
+  const { data: repoData } = useQuery({
+    queryKey: ["repositories"],
+    queryFn: getRepositories,
+  });
+
+  // Find the current repository from the list
+  const currentRepo = repoData?.repositories.find((r) => r.id === codebaseId);
+
   const {
     messages,
     isLoading,
     stop,
     handleSendMessage: originalSendMessage,
   } = useNexuChat({
-    mockMode: true,
+    repositoryId: codebaseId,
     onError: (err) => {
       toast({
         title: "Error",
@@ -78,11 +98,6 @@ const Chat = () => {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      // Toggle debug panel
-      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
-        e.preventDefault();
-        setShowDebug((prev) => !prev);
-      }
       // Toggle graph view
       if ((e.metaKey || e.ctrlKey) && e.key === "g") {
         e.preventDefault();
@@ -91,10 +106,10 @@ const Chat = () => {
       // Show shortcuts modal
       if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
         const activeElement = document.activeElement;
-        const isInputFocused = 
+        const isInputFocused =
           activeElement instanceof HTMLInputElement ||
           activeElement instanceof HTMLTextAreaElement;
-        
+
         if (!isInputFocused) {
           e.preventDefault();
           setShowShortcuts((prev) => !prev);
@@ -129,29 +144,6 @@ const Chat = () => {
       handleSendMessage(content);
     }
   }, [lastUserMessage, handleSendMessage]);
-
-  const mockDebugData = {
-    vectorSearch: {
-      chunks: 10,
-      avgScore: 0.83,
-      latency: 87,
-    },
-    graphExpansion: {
-      added: 7,
-      dependencies: 3,
-      types: 2,
-      callers: 2,
-    },
-    llmReranking: {
-      filtered: 4,
-      tokensUsed: 1847,
-    },
-    finalContext: {
-      chunks: 4,
-      tokens: 5124,
-      contextUsage: 2.5,
-    },
-  };
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -190,20 +182,6 @@ const Chat = () => {
             <Network className="w-4 h-4" />
             <span className="hidden sm:inline">Graph</span>
           </button>
-          {viewMode === "chat" && (
-            <button
-              onClick={() => setShowDebug(!showDebug)}
-              className={cn(
-                "inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors",
-                showDebug
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <Info className="w-4 h-4" />
-              <span className="hidden sm:inline">Debug</span>
-            </button>
-          )}
           <button className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
             <Settings className="w-4 h-4" />
           </button>
@@ -212,12 +190,14 @@ const Chat = () => {
       </header>
 
       {/* Index Status */}
-      <IndexStatus
-        repository={`${codebaseId}/${codebaseId}`}
-        chunks={15234}
-        lastUpdate="2h ago"
-        onReindex={() => console.log("Re-indexing...")}
-      />
+      {currentRepo && (
+        <IndexStatus
+          repository={currentRepo.fullName}
+          chunks={currentRepo.chunkCount}
+          lastUpdate={formatTimeAgo(currentRepo.indexedAt)}
+          onReindex={() => console.log("Re-indexing...")}
+        />
+      )}
 
       {/* Main Content */}
       {viewMode === "graph" ? (
@@ -262,11 +242,6 @@ const Chat = () => {
                       />
                     );
                   })}
-                {showDebug && messages.length > 0 && !isLoading && (
-                  <div className="max-w-3xl mx-auto px-4 pb-4 animate-fade-in">
-                    <RetrievalDebug data={mockDebugData} />
-                  </div>
-                )}
                 <div ref={messagesEndRef} />
               </>
             )}
