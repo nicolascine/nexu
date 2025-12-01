@@ -2,7 +2,7 @@
 // Returns relevant code chunks for a query
 
 import { NextRequest, NextResponse } from 'next/server';
-import { search, initIndex } from '@/lib/nexu';
+import { search, initIndexAsync } from '@/lib/nexu';
 
 export const runtime = 'nodejs';
 
@@ -29,9 +29,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // check index is loaded
-    const { store } = initIndex();
-    if (!store) {
+    // check index is loaded (supports both JSON and pgvector)
+    const { jsonStore, pgStore } = await initIndexAsync();
+    if (!jsonStore && !pgStore) {
       return NextResponse.json(
         { error: 'Index not initialized. Run `npm run ingest` first.' },
         { status: 503 }
