@@ -235,7 +235,6 @@ Our chunking approach is based on the **cAST paper** from Carnegie Mellon Univer
 
 ### v0.2 (next)
 - [ ] Interactive dependency graph visualization
-- [ ] Mermaid diagram generation for code architecture
 - [ ] Call graph visualization
 - [ ] File tree explorer with search
 
