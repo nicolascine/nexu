@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# local env files
+.env
+.env.local
+.env.*.local
+
+# vercel
+.vercel
+
+# next.js
+.next/
+out/
+
+# production
+build/
+dist/
+
+# nexu local data
+.nexu/
+
+# misc
+.DS_Store
+*.pem
+*.log

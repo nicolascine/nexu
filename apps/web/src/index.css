@@ -1,0 +1,524 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Full UI Theme System - Each code theme has a complete UI palette */
+
+@layer base {
+  /* Default: One Dark */
+  :root {
+    --background: 220 13% 18%;
+    --foreground: 220 14% 90%;
+
+    --surface: 220 13% 22%;
+    --surface-hover: 220 13% 26%;
+    
+    --card: 220 13% 20%;
+    --card-foreground: 220 14% 90%;
+
+    --popover: 220 13% 20%;
+    --popover-foreground: 220 14% 90%;
+
+    --primary: 207 82% 66%;
+    --primary-foreground: 220 13% 10%;
+
+    --secondary: 220 13% 26%;
+    --secondary-foreground: 220 14% 90%;
+
+    --muted: 220 13% 26%;
+    --muted-foreground: 220 14% 55%;
+
+    --accent: 286 60% 67%;
+    --accent-foreground: 220 14% 90%;
+
+    --success: 95 38% 62%;
+    --success-foreground: 220 13% 10%;
+
+    --warning: 39 67% 69%;
+    --warning-foreground: 220 13% 10%;
+
+    --destructive: 355 65% 65%;
+    --destructive-foreground: 220 14% 90%;
+
+    --border: 220 13% 26%;
+    --input: 220 13% 26%;
+    --ring: 207 82% 66%;
+
+    --radius: 0.375rem;
+
+    --code-bg: 220 13% 18%;
+    --code-border: 220 13% 26%;
+  }
+
+  /* One Light Theme */
+  .theme-one-light {
+    --background: 230 1% 98%;
+    --foreground: 230 8% 24%;
+
+    --surface: 230 1% 94%;
+    --surface-hover: 230 1% 90%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 230 8% 24%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 8% 24%;
+
+    --primary: 230 80% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 230 1% 90%;
+    --secondary-foreground: 230 8% 24%;
+
+    --muted: 230 1% 90%;
+    --muted-foreground: 230 8% 50%;
+
+    --accent: 35 99% 36%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 152 69% 31%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 35 99% 36%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 5 64% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 230 1% 85%;
+    --input: 230 1% 85%;
+    --ring: 230 80% 52%;
+
+    --code-bg: 230 1% 98%;
+    --code-border: 230 1% 85%;
+  }
+
+  /* Dracula Theme */
+  .theme-dracula {
+    --background: 231 15% 18%;
+    --foreground: 60 30% 96%;
+
+    --surface: 232 14% 22%;
+    --surface-hover: 232 14% 26%;
+    
+    --card: 232 14% 20%;
+    --card-foreground: 60 30% 96%;
+
+    --popover: 232 14% 20%;
+    --popover-foreground: 60 30% 96%;
+
+    --primary: 326 100% 74%;
+    --primary-foreground: 231 15% 18%;
+
+    --secondary: 232 14% 26%;
+    --secondary-foreground: 60 30% 96%;
+
+    --muted: 232 14% 26%;
+    --muted-foreground: 60 30% 70%;
+
+    --accent: 265 89% 78%;
+    --accent-foreground: 231 15% 18%;
+
+    --success: 135 94% 65%;
+    --success-foreground: 231 15% 18%;
+
+    --warning: 65 92% 76%;
+    --warning-foreground: 231 15% 18%;
+
+    --destructive: 0 100% 67%;
+    --destructive-foreground: 60 30% 96%;
+
+    --border: 232 14% 28%;
+    --input: 232 14% 28%;
+    --ring: 326 100% 74%;
+
+    --code-bg: 231 15% 18%;
+    --code-border: 232 14% 28%;
+  }
+
+  /* Nord Theme */
+  .theme-nord {
+    --background: 220 16% 22%;
+    --foreground: 218 27% 88%;
+
+    --surface: 220 16% 26%;
+    --surface-hover: 220 16% 30%;
+    
+    --card: 220 16% 24%;
+    --card-foreground: 218 27% 88%;
+
+    --popover: 220 16% 24%;
+    --popover-foreground: 218 27% 88%;
+
+    --primary: 193 43% 67%;
+    --primary-foreground: 220 16% 16%;
+
+    --secondary: 220 16% 30%;
+    --secondary-foreground: 218 27% 88%;
+
+    --muted: 220 16% 30%;
+    --muted-foreground: 218 27% 60%;
+
+    --accent: 311 20% 63%;
+    --accent-foreground: 218 27% 88%;
+
+    --success: 92 28% 65%;
+    --success-foreground: 220 16% 16%;
+
+    --warning: 40 71% 73%;
+    --warning-foreground: 220 16% 16%;
+
+    --destructive: 354 42% 56%;
+    --destructive-foreground: 218 27% 88%;
+
+    --border: 220 16% 32%;
+    --input: 220 16% 32%;
+    --ring: 193 43% 67%;
+
+    --code-bg: 220 16% 22%;
+    --code-border: 220 16% 32%;
+  }
+
+  /* GitHub Light Theme */
+  .theme-github {
+    --background: 0 0% 100%;
+    --foreground: 210 12% 16%;
+
+    --surface: 210 17% 98%;
+    --surface-hover: 210 17% 94%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 210 12% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 12% 16%;
+
+    --primary: 212 92% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 17% 94%;
+    --secondary-foreground: 210 12% 16%;
+
+    --muted: 210 17% 94%;
+    --muted-foreground: 210 12% 45%;
+
+    --accent: 271 81% 56%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 137 66% 32%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 45 93% 47%;
+    --warning-foreground: 210 12% 16%;
+
+    --destructive: 354 70% 54%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 17% 88%;
+    --input: 210 17% 88%;
+    --ring: 212 92% 45%;
+
+    --code-bg: 210 17% 98%;
+    --code-border: 210 17% 88%;
+  }
+
+  /* Material Dark Theme */
+  .theme-material-dark {
+    --background: 200 19% 18%;
+    --foreground: 200 15% 85%;
+
+    --surface: 200 19% 22%;
+    --surface-hover: 200 19% 26%;
+    
+    --card: 200 19% 20%;
+    --card-foreground: 200 15% 85%;
+
+    --popover: 200 19% 20%;
+    --popover-foreground: 200 15% 85%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 200 19% 10%;
+
+    --secondary: 200 19% 26%;
+    --secondary-foreground: 200 15% 85%;
+
+    --muted: 200 19% 26%;
+    --muted-foreground: 200 15% 55%;
+
+    --accent: 291 47% 60%;
+    --accent-foreground: 200 15% 85%;
+
+    --success: 122 39% 49%;
+    --success-foreground: 200 19% 10%;
+
+    --warning: 36 100% 50%;
+    --warning-foreground: 200 19% 10%;
+
+    --destructive: 4 90% 58%;
+    --destructive-foreground: 200 15% 85%;
+
+    --border: 200 19% 28%;
+    --input: 200 19% 28%;
+    --ring: 199 89% 48%;
+
+    --code-bg: 200 19% 18%;
+    --code-border: 200 19% 28%;
+  }
+
+  /* Material Light Theme */
+  .theme-material-light {
+    --background: 0 0% 98%;
+    --foreground: 0 0% 20%;
+
+    --surface: 0 0% 94%;
+    --surface-hover: 0 0% 90%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 20%;
+
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 90%;
+    --secondary-foreground: 0 0% 20%;
+
+    --muted: 0 0% 90%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 291 47% 51%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 122 39% 41%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 36 100% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 4 90% 58%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
+    --ring: 199 89% 48%;
+
+    --code-bg: 0 0% 98%;
+    --code-border: 0 0% 85%;
+  }
+
+  /* Synthwave '84 Theme */
+  .theme-synthwave84 {
+    --background: 261 44% 15%;
+    --foreground: 320 60% 90%;
+
+    --surface: 261 44% 19%;
+    --surface-hover: 261 44% 23%;
+    
+    --card: 261 44% 17%;
+    --card-foreground: 320 60% 90%;
+
+    --popover: 261 44% 17%;
+    --popover-foreground: 320 60% 90%;
+
+    --primary: 320 100% 60%;
+    --primary-foreground: 261 44% 10%;
+
+    --secondary: 261 44% 23%;
+    --secondary-foreground: 320 60% 90%;
+
+    --muted: 261 44% 23%;
+    --muted-foreground: 320 60% 65%;
+
+    --accent: 180 100% 50%;
+    --accent-foreground: 261 44% 10%;
+
+    --success: 120 100% 70%;
+    --success-foreground: 261 44% 10%;
+
+    --warning: 54 100% 70%;
+    --warning-foreground: 261 44% 10%;
+
+    --destructive: 0 100% 60%;
+    --destructive-foreground: 320 60% 90%;
+
+    --border: 261 44% 28%;
+    --input: 261 44% 28%;
+    --ring: 320 100% 60%;
+
+    --code-bg: 261 44% 15%;
+    --code-border: 261 44% 28%;
+  }
+
+  /* Night Owl Theme */
+  .theme-night-owl {
+    --background: 207 95% 8%;
+    --foreground: 200 20% 85%;
+
+    --surface: 207 80% 12%;
+    --surface-hover: 207 80% 16%;
+    
+    --card: 207 85% 10%;
+    --card-foreground: 200 20% 85%;
+
+    --popover: 207 85% 10%;
+    --popover-foreground: 200 20% 85%;
+
+    --primary: 180 100% 45%;
+    --primary-foreground: 207 95% 8%;
+
+    --secondary: 207 80% 16%;
+    --secondary-foreground: 200 20% 85%;
+
+    --muted: 207 80% 16%;
+    --muted-foreground: 200 20% 55%;
+
+    --accent: 320 100% 65%;
+    --accent-foreground: 207 95% 8%;
+
+    --success: 114 31% 68%;
+    --success-foreground: 207 95% 8%;
+
+    --warning: 43 100% 68%;
+    --warning-foreground: 207 95% 8%;
+
+    --destructive: 357 92% 65%;
+    --destructive-foreground: 200 20% 85%;
+
+    --border: 207 80% 20%;
+    --input: 207 80% 20%;
+    --ring: 180 100% 45%;
+
+    --code-bg: 207 95% 8%;
+    --code-border: 207 80% 20%;
+  }
+
+  /* VS Code Dark+ Theme */
+  .theme-vs-dark {
+    --background: 0 0% 12%;
+    --foreground: 0 0% 85%;
+
+    --surface: 0 0% 16%;
+    --surface-hover: 0 0% 20%;
+    
+    --card: 0 0% 14%;
+    --card-foreground: 0 0% 85%;
+
+    --popover: 0 0% 14%;
+    --popover-foreground: 0 0% 85%;
+
+    --primary: 207 90% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 20%;
+    --secondary-foreground: 0 0% 85%;
+
+    --muted: 0 0% 20%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 300 69% 71%;
+    --accent-foreground: 0 0% 12%;
+
+    --success: 95 38% 62%;
+    --success-foreground: 0 0% 12%;
+
+    --warning: 32 93% 66%;
+    --warning-foreground: 0 0% 12%;
+
+    --destructive: 0 79% 63%;
+    --destructive-foreground: 0 0% 85%;
+
+    --border: 0 0% 22%;
+    --input: 0 0% 22%;
+    --ring: 207 90% 54%;
+
+    --code-bg: 0 0% 12%;
+    --code-border: 0 0% 22%;
+  }
+
+  /* Solarized Light Theme */
+  .theme-solarized-light {
+    --background: 44 87% 94%;
+    --foreground: 192 81% 14%;
+
+    --surface: 44 87% 90%;
+    --surface-hover: 44 87% 86%;
+    
+    --card: 44 87% 96%;
+    --card-foreground: 192 81% 14%;
+
+    --popover: 44 87% 96%;
+    --popover-foreground: 192 81% 14%;
+
+    --primary: 205 69% 49%;
+    --primary-foreground: 44 87% 96%;
+
+    --secondary: 44 87% 86%;
+    --secondary-foreground: 192 81% 14%;
+
+    --muted: 44 87% 86%;
+    --muted-foreground: 192 81% 30%;
+
+    --accent: 18 80% 44%;
+    --accent-foreground: 44 87% 96%;
+
+    --success: 68 100% 30%;
+    --success-foreground: 44 87% 96%;
+
+    --warning: 45 100% 35%;
+    --warning-foreground: 44 87% 96%;
+
+    --destructive: 1 71% 52%;
+    --destructive-foreground: 44 87% 96%;
+
+    --border: 44 87% 80%;
+    --input: 44 87% 80%;
+    --ring: 205 69% 49%;
+
+    --code-bg: 44 87% 94%;
+    --code-border: 44 87% 80%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  code {
+    @apply font-mono text-[14px];
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

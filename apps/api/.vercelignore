@@ -1,0 +1,16 @@
+# local dev data - use pgvector or pinecone in production
+.nexu/
+*.pdf
+*.md
+
+# cache
+.next/cache/
+
+# tests & scripts
+tests/
+scripts/
+docs/
+
+# docker (not needed for vercel)
+docker/
+docker-compose.yml
