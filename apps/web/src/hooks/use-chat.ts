@@ -1,48 +1,27 @@
-import { useChat as useAIChat, type UseChatOptions } from "@ai-sdk/react";
-import { type UIMessage, type CreateUIMessage } from "ai";
+import { useState, useCallback, useRef } from "react";
 import { Citation } from "@/components/ChatMessage";
 import { API_URL } from "@/lib/api";
-import { useCallback, useMemo, useState, useEffect } from "react";
 
-// Re-export types from the SDK for convenience
-export type { UIMessage, CreateUIMessage } from "ai";
+export interface UIMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  parts: Array<{ type: "text"; text: string }>;
+  citations?: Citation[];
+}
 
-/**
- * Configuration options for the useChat hook.
- */
 export interface UseChatConfig {
-  /**
-   * The repository ID to chat with (e.g. 'github:owner/repo').
-   */
   repositoryId?: string;
-  /**
-   * The API endpoint for chat completions.
-   */
   api?: string;
-  /**
-   * Callback when a message finishes streaming.
-   */
   onFinish?: (message: UIMessage) => void;
-  /**
-   * Callback when an error occurs.
-   */
   onError?: (error: Error) => void;
-  /**
-   * Initial messages to populate the chat.
-   */
   initialMessages?: UIMessage[];
 }
 
-/**
- * Extended message type that includes citations.
- */
 export interface ChatMessageWithCitations extends UIMessage {
   citations?: Citation[];
 }
 
-/**
- * Helper to extract text content from UIMessage parts.
- */
 export function getMessageContent(message: UIMessage): string {
   return message.parts
     .filter((part): part is { type: "text"; text: string } => part.type === "text")
@@ -50,94 +29,154 @@ export function getMessageContent(message: UIMessage): string {
     .join("");
 }
 
-/**
- * Custom useChat hook that wraps the Vercel AI SDK's useChat.
- * Connects to the Nexu API for code-aware chat completions.
- *
- * Example:
- * ```tsx
- * const chat = useNexuChat({
- *   repositoryId: 'github:anthropics/anthropic-sdk-python'
- * });
- * ```
- */
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 15);
+}
+
 export function useNexuChat(config: UseChatConfig = {}) {
-  const { repositoryId, api, onFinish, onError, initialMessages } = config;
+  const { repositoryId, api, onFinish, onError, initialMessages = [] } = config;
 
-  // Build API endpoint with optional repository filter
-  const endpoint = useMemo(() => {
-    const base = api || `${API_URL}/api/chat`;
-    if (repositoryId) {
-      return `${base}?repository=${encodeURIComponent(repositoryId)}`;
-    }
-    return base;
-  }, [api, repositoryId]);
-
-  // Local input state management
+  const [messages, setMessages] = useState<ChatMessageWithCitations[]>(initialMessages);
   const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Track citations separately since the SDK doesn't have native citation support
-  const [citations, setCitations] = useState<Map<string, Citation[]>>(new Map());
+  // Build API endpoint
+  const endpoint = api || `${API_URL}/api/chat`;
 
-  // Create chat options
-  const chatOptions: UseChatOptions<UIMessage> = useMemo(() => ({
-    api: endpoint,
-    initialMessages,
-  }), [endpoint, initialMessages]);
-
-  // Use the SDK's useChat hook
-  const chat = useAIChat(chatOptions);
-
-  // Destructure what we need from the chat
-  const { messages, status, sendMessage, stop, error, setMessages } = chat;
-
-  // Computed loading state
-  const isLoading = status === "streaming" || status === "submitted";
-
-  // Track when streaming completes
-  useEffect(() => {
-    if (status === "ready") {
-      const lastAssistantMessage = [...messages].reverse().find((m) => m.role === "assistant");
-      if (lastAssistantMessage) {
-        onFinish?.(lastAssistantMessage);
-      }
+  const stop = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
     }
-  }, [status, messages, onFinish]);
+    setIsLoading(false);
+  }, []);
 
-  // Handle errors
-  useEffect(() => {
-    if (error) {
-      onError?.(error);
-    }
-  }, [error, onError]);
-
-  // Helper to get citations for a specific message
-  const getCitationsForMessage = useCallback(
-    (messageId: string): Citation[] => {
-      return citations.get(messageId) || [];
-    },
-    [citations]
-  );
-
-  // Enhanced messages with citations
-  const messagesWithCitations: ChatMessageWithCitations[] = useMemo(() => {
-    return messages.map((message) => ({
-      ...message,
-      citations: message.role === "assistant" ? getCitationsForMessage(message.id) : undefined,
-    }));
-  }, [messages, getCitationsForMessage]);
-
-  // Custom send handler
   const handleSendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim()) return;
+      if (!content.trim() || isLoading) return;
+
+      const userMessage: ChatMessageWithCitations = {
+        id: generateId(),
+        role: "user",
+        content,
+        parts: [{ type: "text", text: content }],
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
       setInput("");
-      sendMessage({ text: content });
+      setIsLoading(true);
+      setError(null);
+
+      // Create abort controller for this request
+      abortControllerRef.current = new AbortController();
+
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messages: [...messages, userMessage].map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            options: repositoryId ? { repository: repositoryId } : undefined,
+          }),
+          signal: abortControllerRef.current.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+
+        const assistantMessage: ChatMessageWithCitations = {
+          id: generateId(),
+          role: "assistant",
+          content: "",
+          parts: [{ type: "text", text: "" }],
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+
+        // Read streaming response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (!reader) {
+          throw new Error("No response body");
+        }
+
+        let fullContent = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n").filter((line) => line.trim());
+
+          for (const line of lines) {
+            // Parse Vercel AI SDK streaming format
+            // 0:"text" - text content
+            // 2:[data] - data/chunks
+            // d:{...} - done signal
+            if (line.startsWith("0:")) {
+              try {
+                const text = JSON.parse(line.slice(2));
+                fullContent += text;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  const lastIdx = updated.length - 1;
+                  if (lastIdx >= 0 && updated[lastIdx].role === "assistant") {
+                    updated[lastIdx] = {
+                      ...updated[lastIdx],
+                      content: fullContent,
+                      parts: [{ type: "text", text: fullContent }],
+                    };
+                  }
+                  return updated;
+                });
+              } catch (e) {
+                // Ignore parse errors
+              }
+            }
+          }
+        }
+
+        // Update final message
+        setMessages((prev) => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          if (lastIdx >= 0 && updated[lastIdx].role === "assistant") {
+            const finalMessage = {
+              ...updated[lastIdx],
+              content: fullContent,
+              parts: [{ type: "text", text: fullContent }],
+            };
+            onFinish?.(finalMessage);
+            updated[lastIdx] = finalMessage;
+          }
+          return updated;
+        });
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          // Request was aborted, don't treat as error
+          return;
+        }
+        const error = err instanceof Error ? err : new Error("Unknown error");
+        setError(error);
+        onError?.(error);
+      } finally {
+        setIsLoading(false);
+        abortControllerRef.current = null;
+      }
     },
-    [sendMessage]
+    [endpoint, messages, repositoryId, isLoading, onFinish, onError]
   );
 
-  // Input change handler compatible with React forms
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       setInput(e.target.value);
@@ -145,7 +184,6 @@ export function useNexuChat(config: UseChatConfig = {}) {
     []
   );
 
-  // Form submit handler
   const handleSubmit = useCallback(
     (e?: { preventDefault?: () => void }) => {
       e?.preventDefault?.();
@@ -155,31 +193,19 @@ export function useNexuChat(config: UseChatConfig = {}) {
   );
 
   return {
-    // Messages with citations
-    messages: messagesWithCitations,
-
-    // Input state (for controlled input)
+    messages,
     input,
     setInput,
     handleInputChange,
-
-    // Actions
     handleSubmit,
     handleSendMessage,
     stop,
-
-    // Status
     isLoading,
-    status,
+    status: isLoading ? "streaming" : "ready",
     error,
-
-    // Utilities
-    getCitationsForMessage,
     getMessageContent,
     setMessages,
-    setCitations,
   };
 }
 
-// Keep backwards compatible alias
 export const useChat = useNexuChat;
