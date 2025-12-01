@@ -260,7 +260,7 @@ async function saveToPgVector(
   const { Pool } = await import('pg');
   const pool = new Pool({ connectionString, connectionTimeoutMillis: 60000 });
 
-  const BATCH_SIZE = 100; // multi-row insert batch size (100 rows × 13 params = 1300 params per query)
+  const BATCH_SIZE = 50; // multi-row insert batch size (50 rows - reduced to avoid statement timeout)
 
   try {
     const client = await pool.connect();
@@ -369,16 +369,35 @@ async function saveToPgVector(
         `, [edgeFroms, edgeTos]);
       }
 
-      // Insert graph nodes (individual inserts - small dataset)
-      for (const [filepath, node] of graph.nodes.entries()) {
+      // Batch insert graph nodes using multi-row INSERT
+      const NODE_BATCH_SIZE = 100;
+      const nodeEntries = Array.from(graph.nodes.entries());
+      const totalNodeBatches = Math.ceil(nodeEntries.length / NODE_BATCH_SIZE);
+
+      for (let batchNum = 0; batchNum < totalNodeBatches; batchNum++) {
+        const start = batchNum * NODE_BATCH_SIZE;
+        const end = Math.min(start + NODE_BATCH_SIZE, nodeEntries.length);
+        const batchNodes = nodeEntries.slice(start, end);
+
+        const values: string[] = [];
+        const params: any[] = [];
+        let paramIndex = 1;
+
+        for (const [filepath, node] of batchNodes) {
+          values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2})`);
+          params.push(
+            `${repositoryId}:${filepath}`,
+            Array.from(node.exports),
+            JSON.stringify(node.imports),
+          );
+          paramIndex += 3;
+        }
+
         await client.query(`
-          INSERT INTO graph_nodes (filepath, exports, imports) VALUES ($1, $2, $3)
+          INSERT INTO graph_nodes (filepath, exports, imports)
+          VALUES ${values.join(', ')}
           ON CONFLICT (filepath) DO UPDATE SET exports = EXCLUDED.exports, imports = EXCLUDED.imports
-        `, [
-          `${repositoryId}:${filepath}`,
-          Array.from(node.exports),
-          JSON.stringify(node.imports),
-        ]);
+        `, params);
       }
 
       await client.query('COMMIT');
