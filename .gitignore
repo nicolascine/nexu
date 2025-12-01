@@ -32,7 +32,8 @@ Thumbs.db
 *.swo
 
 # vercel
-.vercel
+.vercel/
+**/.vercel/
 
 # typescript
 *.tsbuildinfo

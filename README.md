@@ -22,7 +22,7 @@ nexu solves this with:
 
 ```bash
 # clone and install
-git clone https://github.com/nicholasgcoles/nexu
+git clone https://github.com/nicolascine/nexu
 cd nexu && pnpm install
 
 # configure
@@ -39,6 +39,57 @@ pnpm dev
 ```
 
 ## how it works
+
+### the problem
+
+Traditional RAG breaks code mid-function. You lose context. The LLM hallucinates.
+
+```typescript
+// fixed-size chunking cuts here ↓
+function calculatePrice(items: Item[]) {
+  const subtotal = items.reduce((sum, item) =>
+--- CHUNK BOUNDARY ---
+    sum + item.price, 0);
+  return subtotal * 1.19;
+}
+```
+
+### the solution
+
+nexu uses Abstract Syntax Trees to chunk at semantic boundaries - functions, classes, types. Never mid-statement.
+
+**1. AST-based chunking** (powered by [tree-sitter](https://tree-sitter.github.io/tree-sitter/))
+
+```
+code file → parse AST → identify functions/classes → create chunks → extract metadata
+```
+
+Each chunk includes:
+- `filepath`, `startLine`, `endLine` - for citations
+- `imports`, `exports`, `types` - for graph expansion
+- `nodeType`, `name` - for filtering
+
+**2. Dependency graph**
+
+When you search for `getUserAvailability()`, you probably need its types and imports too.
+
+```
+getUserAvailability() → [Availability, Booking, TimeSlot] → expand context
+```
+
+The graph maps `file → imports` and `file → exports` relationships. On retrieval, we follow edges to include related code.
+
+**3. Two-stage retrieval**
+
+```
+user query → embed → vector search (top 10) → graph expansion → LLM rerank (top 5) → generate
+```
+
+- **Vector search**: Semantic similarity finds candidates
+- **Graph expansion**: Follow imports to add context
+- **LLM rerank**: Claude scores relevance, filters noise
+
+Result: ~5k tokens of highly relevant code instead of 50k tokens of maybe-relevant code.
 
 ### ingestion pipeline
 
