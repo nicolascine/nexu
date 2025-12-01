@@ -258,9 +258,9 @@ async function saveToPgVector(
   if (!connectionString) throw new Error('DATABASE_URL not set. Use --prod with valid .env');
 
   const { Pool } = await import('pg');
-  const pool = new Pool({ connectionString, connectionTimeoutMillis: 30000 });
+  const pool = new Pool({ connectionString, connectionTimeoutMillis: 60000 });
 
-  const BATCH_SIZE = 100; // commit every 100 chunks
+  const BATCH_SIZE = 100; // multi-row insert batch size (100 rows × 13 params = 1300 params per query)
 
   try {
     const client = await pool.connect();
@@ -274,38 +274,35 @@ async function saveToPgVector(
       await client.query('COMMIT');
       console.log(`  Cleared old data for ${repositoryId}`);
 
-      // Step 2: Insert chunks in batches with progress
-      const totalBatches = Math.ceil(entries.length / BATCH_SIZE);
+      // Step 2: Deduplicate entries (keep last occurrence of each id)
+      const entriesMap = new Map<string, typeof entries[0]>();
+      for (const entry of entries) {
+        entriesMap.set(entry.id, entry);
+      }
+      const uniqueEntries = Array.from(entriesMap.values());
+      console.log(`  Deduplicated: ${entries.length} -> ${uniqueEntries.length} chunks`);
+
+      // Step 3: Insert chunks using multi-row INSERT (much faster!)
+      const totalBatches = Math.ceil(uniqueEntries.length / BATCH_SIZE);
       let insertedCount = 0;
 
       for (let batchNum = 0; batchNum < totalBatches; batchNum++) {
         const start = batchNum * BATCH_SIZE;
-        const end = Math.min(start + BATCH_SIZE, entries.length);
-        const batchEntries = entries.slice(start, end);
+        const end = Math.min(start + BATCH_SIZE, uniqueEntries.length);
+        const batchEntries = uniqueEntries.slice(start, end);
 
         await client.query('BEGIN');
 
+        // Use multi-value INSERT for bulk insert - single query for entire batch
+        // Build VALUES clause
+        const values: string[] = [];
+        const params: any[] = [];
+        let paramIndex = 1;
+
         for (const entry of batchEntries) {
           const embeddingStr = `[${entry.embedding.join(',')}]`;
-          await client.query(`
-            INSERT INTO chunks (
-              id, filepath, start_line, end_line, node_type, name, language,
-              content, imports, exports, types, embedding, repository_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::vector, $13)
-            ON CONFLICT (id) DO UPDATE SET
-              filepath = EXCLUDED.filepath,
-              start_line = EXCLUDED.start_line,
-              end_line = EXCLUDED.end_line,
-              node_type = EXCLUDED.node_type,
-              name = EXCLUDED.name,
-              language = EXCLUDED.language,
-              content = EXCLUDED.content,
-              imports = EXCLUDED.imports,
-              exports = EXCLUDED.exports,
-              types = EXCLUDED.types,
-              embedding = EXCLUDED.embedding,
-              repository_id = EXCLUDED.repository_id
-          `, [
+          values.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}::vector, $${paramIndex + 12})`);
+          params.push(
             entry.id,
             entry.chunk.filepath,
             entry.chunk.startLine,
@@ -319,35 +316,64 @@ async function saveToPgVector(
             entry.chunk.types,
             embeddingStr,
             repositoryId,
-          ]);
+          );
+          paramIndex += 13;
         }
+
+        await client.query(`
+          INSERT INTO chunks (
+            id, filepath, start_line, end_line, node_type, name, language,
+            content, imports, exports, types, embedding, repository_id
+          )
+          VALUES ${values.join(', ')}
+          ON CONFLICT (id) DO UPDATE SET
+            filepath = EXCLUDED.filepath,
+            start_line = EXCLUDED.start_line,
+            end_line = EXCLUDED.end_line,
+            node_type = EXCLUDED.node_type,
+            name = EXCLUDED.name,
+            language = EXCLUDED.language,
+            content = EXCLUDED.content,
+            imports = EXCLUDED.imports,
+            exports = EXCLUDED.exports,
+            types = EXCLUDED.types,
+            embedding = EXCLUDED.embedding,
+            repository_id = EXCLUDED.repository_id
+        `, params);
 
         await client.query('COMMIT');
         insertedCount += batchEntries.length;
-        const progress = Math.round((insertedCount / entries.length) * 100);
-        process.stdout.write(`\r  Saving chunks: ${progress}% (${insertedCount}/${entries.length})`);
+        const progress = Math.round((insertedCount / uniqueEntries.length) * 100);
+        process.stdout.write(`\r  Saving chunks: ${progress}% (${insertedCount}/${uniqueEntries.length})`);
       }
 
       console.log(''); // newline after progress
 
-      // Step 3: Insert graph data (separate transaction)
+      // Step 3: Insert graph data (batch insert)
       await client.query('BEGIN');
 
-      // insert graph edges
+      // Batch insert graph edges
+      const edgeFroms: string[] = [];
+      const edgeTos: string[] = [];
       for (const [from, toSet] of graph.edges.entries()) {
         for (const to of toSet) {
-          await client.query(`
-            INSERT INTO graph_edges (from_file, to_file) VALUES ($1, $2)
-            ON CONFLICT DO NOTHING
-          `, [`${repositoryId}:${from}`, `${repositoryId}:${to}`]);
+          edgeFroms.push(`${repositoryId}:${from}`);
+          edgeTos.push(`${repositoryId}:${to}`);
         }
       }
+      if (edgeFroms.length > 0) {
+        await client.query(`
+          INSERT INTO graph_edges (from_file, to_file)
+          SELECT * FROM UNNEST($1::text[], $2::text[])
+          ON CONFLICT DO NOTHING
+        `, [edgeFroms, edgeTos]);
+      }
 
-      // insert graph nodes
+      // Insert graph nodes (individual inserts - small dataset)
       for (const [filepath, node] of graph.nodes.entries()) {
         await client.query(`
           INSERT INTO graph_nodes (filepath, exports, imports) VALUES ($1, $2, $3)
-          ON CONFLICT (filepath) DO UPDATE SET exports = $2, imports = $3
+          ON CONFLICT (filepath) DO UPDATE SET exports = EXCLUDED.exports, imports = EXCLUDED.imports
         `, [
           `${repositoryId}:${filepath}`,
           Array.from(node.exports),
