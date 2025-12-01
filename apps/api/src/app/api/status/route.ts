@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { getStatus } from '@/lib/nexu';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
@@ -15,10 +16,11 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Status API error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {
         ok: false,
-        error: 'Failed to get status',
+        error: errorMessage,
         ready: false,
         indexed: false,
       },
