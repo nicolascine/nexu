@@ -5,7 +5,10 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { CodeChunk } from '../ast';
 import type { DependencyGraph, Import } from '../graph';
-import { loadStore, retrieve, simpleRetrieve, type VectorStore, type RetrievalResult, type RetrievalOptions } from '../retrieval';
+import { loadStore, type VectorStore, type RetrievalResult, type RetrievalOptions } from '../retrieval';
+import type { IVectorStore } from '../retrieval/stores/types';
+import { PgVectorStore } from '../retrieval/stores/pgvector-store';
+import { embed } from '../llm';
 import { generate, generateStream, createLLMProvider, getLLMConfig, getEmbeddingConfig, type GenerateResult, type Citation } from '../llm';
 
 // config paths
@@ -14,10 +17,15 @@ const STORE_FILE = join(DATA_DIR, 'vectors.json');
 const GRAPH_FILE = join(DATA_DIR, 'graph.json');
 const META_FILE = join(DATA_DIR, 'meta.json');
 
+// store type from environment
+const VECTOR_STORE_TYPE = process.env.VECTOR_STORE_TYPE || 'json';
+
 // cached state (singleton pattern for serverless)
 let cachedStore: VectorStore | null = null;
+let cachedPgStore: IVectorStore | null = null;
 let cachedGraph: DependencyGraph | null = null;
 let cachedMeta: IndexMeta | null = null;
+let pgStoreInitPromise: Promise<IVectorStore> | null = null;
 
 export interface IndexMeta {
   version: string;
@@ -153,8 +161,45 @@ function attachChunksToGraph(graph: DependencyGraph, store: VectorStore) {
   }
 }
 
-// initialize/load index (cached for serverless)
+// initialize pgvector store (async, with deduplication)
+async function initPgVectorStore(): Promise<IVectorStore> {
+  if (cachedPgStore) {
+    return cachedPgStore;
+  }
+
+  // prevent multiple concurrent initializations
+  if (pgStoreInitPromise) {
+    return pgStoreInitPromise;
+  }
+
+  pgStoreInitPromise = (async () => {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error('DATABASE_URL required for pgvector store');
+    }
+
+    const store = new PgVectorStore({
+      type: 'pgvector',
+      dimension: 1536, // text-embedding-3-small
+      model: 'text-embedding-3-small',
+      connectionString,
+    });
+
+    await store.init();
+    cachedPgStore = store;
+    return store;
+  })();
+
+  return pgStoreInitPromise;
+}
+
+// initialize/load index (cached for serverless) - sync version for JSON
 export function initIndex(): { store: VectorStore | null; graph: DependencyGraph | null; meta: IndexMeta | null } {
+  // for pgvector, return null - use initIndexAsync instead
+  if (VECTOR_STORE_TYPE === 'pgvector') {
+    return { store: null, graph: null, meta: null };
+  }
+
   if (cachedStore && cachedGraph && cachedMeta) {
     return { store: cachedStore, graph: cachedGraph, meta: cachedMeta };
   }
@@ -183,19 +228,76 @@ export function initIndex(): { store: VectorStore | null; graph: DependencyGraph
   return { store, graph, meta };
 }
 
+// async index initialization - supports both JSON and pgvector
+export async function initIndexAsync(): Promise<{
+  jsonStore: VectorStore | null;
+  pgStore: IVectorStore | null;
+  graph: DependencyGraph | null;
+  meta: IndexMeta | null;
+}> {
+  if (VECTOR_STORE_TYPE === 'pgvector') {
+    const pgStore = await initPgVectorStore();
+    return { jsonStore: null, pgStore, graph: null, meta: null };
+  }
+
+  const { store, graph, meta } = initIndex();
+  return { jsonStore: store, pgStore: null, graph, meta };
+}
+
 // clear cache (useful for hot reloading in dev)
-export function clearCache(): void {
+export async function clearCache(): Promise<void> {
+  if (cachedPgStore) {
+    await cachedPgStore.close();
+    cachedPgStore = null;
+  }
+  pgStoreInitPromise = null;
   cachedStore = null;
   cachedGraph = null;
   cachedMeta = null;
 }
 
 // get system status
-export function getStatus(): NexuStatus {
-  const { store, meta } = initIndex();
+export async function getStatus(): Promise<NexuStatus> {
   const llmConfig = getLLMConfig();
   const embeddingConfig = getEmbeddingConfig();
 
+  // check pgvector first
+  if (VECTOR_STORE_TYPE === 'pgvector') {
+    try {
+      const pgStore = await initPgVectorStore();
+      const stats = await pgStore.getStats();
+      return {
+        ready: true,
+        indexed: stats.totalEntries > 0,
+        meta: null,
+        llm: {
+          provider: llmConfig.provider,
+          model: llmConfig.model,
+        },
+        embedding: {
+          provider: embeddingConfig.provider,
+          model: embeddingConfig.model,
+        },
+      };
+    } catch (error) {
+      return {
+        ready: false,
+        indexed: false,
+        meta: null,
+        llm: {
+          provider: llmConfig.provider,
+          model: llmConfig.model,
+        },
+        embedding: {
+          provider: embeddingConfig.provider,
+          model: embeddingConfig.model,
+        },
+      };
+    }
+  }
+
+  // fallback to JSON
+  const { store, meta } = initIndex();
   return {
     ready: store !== null,
     indexed: store !== null && store.entries.length > 0,
@@ -211,13 +313,54 @@ export function getStatus(): NexuStatus {
   };
 }
 
+// search chunks using pgvector (direct database query)
+async function searchPgVector(
+  store: IVectorStore,
+  query: string,
+  options: { topK?: number; minScore?: number } = {}
+): Promise<SearchResponse> {
+  const { topK = 10, minScore = 0.3 } = options;
+
+  // embed query
+  const [queryEmbedding] = await embed(query);
+
+  // search pgvector
+  const results = await store.search(queryEmbedding, { topK, minScore });
+
+  return {
+    chunks: results.map((r) => ({
+      filepath: r.entry.chunk.filepath,
+      startLine: r.entry.chunk.startLine,
+      endLine: r.entry.chunk.endLine,
+      nodeType: r.entry.chunk.nodeType,
+      name: r.entry.chunk.name,
+      content: r.entry.chunk.content,
+      score: r.score,
+      language: r.entry.chunk.language,
+    })),
+    stage: 'vector',
+  };
+}
+
 // search chunks (retrieval only, no generation)
 export async function search(request: SearchRequest): Promise<SearchResponse> {
-  const { store, graph } = initIndex();
+  const { jsonStore, pgStore, graph } = await initIndexAsync();
 
-  if (!store) {
+  // use pgvector if available
+  if (pgStore) {
+    return searchPgVector(pgStore, request.query, {
+      topK: request.options?.rerankTopK || 10,
+      minScore: request.options?.minScore || 0.3,
+    });
+  }
+
+  // fallback to JSON store
+  if (!jsonStore) {
     throw new Error('Index not initialized. Run `npm run ingest` first.');
   }
+
+  // import retrieval functions dynamically for JSON store
+  const { retrieve, simpleRetrieve } = await import('../retrieval');
 
   const options: RetrievalOptions = {
     topK: 10,
@@ -232,9 +375,9 @@ export async function search(request: SearchRequest): Promise<SearchResponse> {
   let result: RetrievalResult;
 
   if (graph && options.expandGraph !== false) {
-    result = await retrieve(store, graph, request.query, options);
+    result = await retrieve(jsonStore, graph, request.query, options);
   } else {
-    result = await simpleRetrieve(store, request.query, {
+    result = await simpleRetrieve(jsonStore, request.query, {
       topK: options.rerankTopK || 5,
     });
   }

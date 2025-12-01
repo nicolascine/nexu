@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   try {
-    const status = getStatus();
+    const status = await getStatus();
 
     return NextResponse.json({
       ok: true,

@@ -2,7 +2,7 @@
 // Compatible with Vercel AI SDK useChat hook
 
 import { NextRequest } from 'next/server';
-import { chatStream, search, initIndex, type ChatRequest } from '@/lib/nexu';
+import { chatStream, search, initIndexAsync, type ChatRequest } from '@/lib/nexu';
 import type { CodeChunk } from '@/lib/ast';
 import { generateStream } from '@/lib/llm';
 
@@ -44,9 +44,9 @@ export async function POST(request: NextRequest) {
 
     const query = lastUserMessage.content;
 
-    // check index is loaded
-    const { store } = initIndex();
-    if (!store) {
+    // check index is loaded (supports both JSON and pgvector)
+    const { jsonStore, pgStore } = await initIndexAsync();
+    if (!jsonStore && !pgStore) {
       return new Response(
         JSON.stringify({ error: 'Index not initialized. Run `npm run ingest` first.' }),
         { status: 503, headers: { 'Content-Type': 'application/json' } }
