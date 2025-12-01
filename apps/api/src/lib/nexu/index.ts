@@ -319,7 +319,7 @@ async function searchPgVector(
   query: string,
   options: { topK?: number; minScore?: number } = {}
 ): Promise<SearchResponse> {
-  const { topK = 10, minScore = 0.3 } = options;
+  const { topK = 10, minScore = 0 } = options;
 
   // embed query
   const [queryEmbedding] = await embed(query);
@@ -349,8 +349,8 @@ export async function search(request: SearchRequest): Promise<SearchResponse> {
   // use pgvector if available
   if (pgStore) {
     return searchPgVector(pgStore, request.query, {
-      topK: request.options?.rerankTopK || 10,
-      minScore: request.options?.minScore || 0.3,
+      topK: request.options?.topK || 10,
+      minScore: request.options?.minScore,
     });
   }
 

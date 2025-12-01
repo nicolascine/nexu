@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { useNexuChat, getMessageContent } from "@/hooks/use-chat";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { getRepositories } from "@/lib/api";
+import { getRepositories, parseRepoSlug } from "@/lib/api";
 
 type ViewMode = "chat" | "graph";
 
@@ -29,7 +29,7 @@ function formatTimeAgo(date: string): string {
 }
 
 const Chat = () => {
-  const { codebaseId } = useParams();
+  const { codebaseId: slug } = useParams();
   const [viewMode, setViewMode] = useState<ViewMode>("chat");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -37,14 +37,19 @@ const Chat = () => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
+  // Parse slug to get owner/name
+  const slugParts = slug ? parseRepoSlug(slug) : null;
+
   // Fetch repository data
   const { data: repoData } = useQuery({
     queryKey: ["repositories"],
     queryFn: getRepositories,
   });
 
-  // Find the current repository from the list
-  const currentRepo = repoData?.repositories.find((r) => r.id === codebaseId);
+  // Find the current repository from the list by slug (owner--name)
+  const currentRepo = repoData?.repositories.find((r) =>
+    slugParts && r.owner.toLowerCase() === slugParts.owner && r.name.toLowerCase() === slugParts.name
+  );
 
   const {
     messages,
@@ -52,7 +57,7 @@ const Chat = () => {
     stop,
     handleSendMessage: originalSendMessage,
   } = useNexuChat({
-    repositoryId: codebaseId,
+    repositoryId: currentRepo?.id,
     onError: (err) => {
       toast({
         title: "Error",
@@ -157,7 +162,7 @@ const Chat = () => {
           </Link>
           <div>
             <h1 className="text-base font-semibold text-foreground">nexu</h1>
-            <p className="text-xs text-muted-foreground">{codebaseId}</p>
+            <p className="text-xs text-muted-foreground">{currentRepo?.fullName || slug}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -202,7 +207,7 @@ const Chat = () => {
       {/* Main Content */}
       {viewMode === "graph" ? (
         <div className="flex-1 overflow-hidden">
-          <CodeGraph onNodeClick={handleNodeClick} codebaseId={codebaseId} />
+          <CodeGraph onNodeClick={handleNodeClick} codebaseId={currentRepo?.id} />
         </div>
       ) : (
         <>
@@ -257,7 +262,7 @@ const Chat = () => {
           <ChatInput
             onSendMessage={handleSendMessage}
             disabled={isLoading}
-            placeholder={`Ask about ${codebaseId}...`}
+            placeholder={`Ask about ${currentRepo?.name || 'this codebase'}...`}
             autoFocus={true}
             onShowShortcuts={() => setShowShortcuts(true)}
           />

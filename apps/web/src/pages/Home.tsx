@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CodeThemeSelector } from "@/components/CodeThemeSelector";
 import { cn } from "@/lib/utils";
-import { getRepositories, type Repository } from "@/lib/api";
+import { getRepositories, getRepoSlug, type Repository } from "@/lib/api";
 
 function formatTimeAgo(date: string): string {
   const now = new Date();
@@ -134,7 +134,7 @@ const Home = () => {
         {!isLoading && !error && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
             {filteredCodebases.map((repo) => (
-              <Link key={repo.id} to={`/chat/${encodeURIComponent(repo.id)}`}>
+              <Link key={repo.id} to={`/chat/${getRepoSlug(repo.owner, repo.name)}`}>
                 <Card
                   className={cn(
                     "group relative h-full p-4 sm:p-6 transition-all hover:shadow-lg active:shadow-lg hover:border-primary/50 active:border-primary/50",

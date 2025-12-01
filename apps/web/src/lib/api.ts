@@ -17,6 +17,18 @@ export interface Repository {
   status: 'pending' | 'indexing' | 'ready' | 'error'
 }
 
+// Generate slug from owner/name
+export function getRepoSlug(owner: string, name: string): string {
+  return `${owner}--${name}`.toLowerCase()
+}
+
+// Parse slug back to owner and name
+export function parseRepoSlug(slug: string): { owner: string; name: string } | null {
+  const parts = slug.split('--')
+  if (parts.length !== 2) return null
+  return { owner: parts[0], name: parts[1] }
+}
+
 export interface StatusResponse {
   ok: boolean
   status: 'ready' | 'not_indexed'

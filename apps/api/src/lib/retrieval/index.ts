@@ -36,7 +36,7 @@ export interface RetrievalOptions {
 
 const DEFAULT_OPTIONS: Required<RetrievalOptions> = {
   topK: 10,
-  minScore: 0.3,
+  minScore: 0,
   expandGraph: true,
   maxHops: 2,
   maxExpandedChunks: 20,
