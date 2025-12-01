@@ -1,24 +1,21 @@
 // LLM abstraction layer - vendor lock-in free
 
 import type { CodeChunk } from '../ast';
-import type { LLMProvider, EmbeddingProvider, ChatOptions, EmbedOptions } from './types';
-import { getLLMConfig, getEmbeddingConfig } from './config';
+import { getEmbeddingConfig, getLLMConfig } from './config';
 import { AnthropicProvider } from './providers/anthropic';
 import { GeminiProvider } from './providers/gemini';
 import { OpenAICompatibleProvider, createOllamaProvider } from './providers/openai-compatible';
+import type { ChatOptions, EmbedOptions, EmbeddingProvider, LLMProvider } from './types';
 
 // re-export types
 export type {
-  Message,
   ChatOptions,
   ChatResult,
   EmbedOptions,
-  EmbedResult,
-  LLMProvider,
-  EmbeddingProvider,
+  EmbedResult, EmbeddingProvider, LLMProvider, Message
 } from './types';
 
-export { getLLMConfig, getEmbeddingConfig } from './config';
+export { getEmbeddingConfig, getLLMConfig } from './config';
 
 // provider factory
 export function createLLMProvider(): LLMProvider {
@@ -128,7 +125,20 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
       {
         role: 'system',
         content:
-          'You are a code assistant. Answer questions about the provided codebase context. Always cite file paths and line numbers.',
+          `You are a senior software engineer and code assistant. Your task is to answer questions about the provided codebase context.
+
+CRITICAL INSTRUCTIONS:
+1. Answer in the same language as the user's question (English or Spanish).
+2. START YOUR RESPONSE IMMEDIATELY with the answer.
+3. DO NOT use introductory filler phrases like "Based on the provided code context...", "The code shows...", "According to the repository...".
+4. Be concise and professional. Focus on the most relevant parts.
+5. Always cite file paths and line numbers.
+6. Do not output excessive code blocks; only what is necessary.
+
+Example:
+User: "How is auth handled?"
+Bad Answer: "Based on the code in src/auth.ts, authentication is handled using..."
+Good Answer: "Authentication is handled in \`src/auth.ts\` using the \`AuthService\` class..."`,
       },
       {
         role: 'user',
@@ -161,7 +171,20 @@ export async function* generateStream(
       {
         role: 'system',
         content:
-          'You are a code assistant. Answer questions about the provided codebase context. Always cite file paths and line numbers.',
+          `You are a senior software engineer and code assistant. Your task is to answer questions about the provided codebase context.
+
+CRITICAL INSTRUCTIONS:
+1. Answer in the same language as the user's question (English or Spanish).
+2. START YOUR RESPONSE IMMEDIATELY with the answer.
+3. DO NOT use introductory filler phrases like "Based on the provided code context...", "The code shows...", "According to the repository...".
+4. Be concise and professional. Focus on the most relevant parts.
+5. Always cite file paths and line numbers.
+6. Do not output excessive code blocks; only what is necessary.
+
+Example:
+User: "How is auth handled?"
+Bad Answer: "Based on the code in src/auth.ts, authentication is handled using..."
+Good Answer: "Authentication is handled in \`src/auth.ts\` using the \`AuthService\` class..."`,
       },
       {
         role: 'user',
