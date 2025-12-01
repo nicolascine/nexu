@@ -193,7 +193,7 @@ const Chat = () => {
         >
             {/* Empty state with example questions */}
             {messages.length === 0 && (
-              <EmptyState onSelectExample={handleSendMessage} />
+              <EmptyState onSelectExample={handleSendMessage} repositoryId={currentRepo?.id} />
             )}
             
             {messages.length > 0 && (

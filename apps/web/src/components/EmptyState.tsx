@@ -1,15 +1,18 @@
+import suggestedQuestions from "@/config/demo-suggested-questions.json";
+
 interface EmptyStateProps {
   onSelectExample: (example: string) => void;
+  repositoryId?: string;
 }
 
-const examples = [
-  "Where is availability validation?",
-  "How does payment processing work?",
-  "What middleware is used for auth?",
-  "Explain the booking creation flow",
-];
+function getExamples(repositoryId?: string): string[] {
+  if (!repositoryId) return suggestedQuestions.default;
+  const questions = suggestedQuestions[repositoryId as keyof typeof suggestedQuestions];
+  return questions || suggestedQuestions.default;
+}
 
-export function EmptyState({ onSelectExample }: EmptyStateProps) {
+export function EmptyState({ onSelectExample, repositoryId }: EmptyStateProps) {
+  const examples = getExamples(repositoryId);
   return (
     <div className="flex-1 flex items-center justify-center p-4 sm:p-8">
       <div className="max-w-xl mx-auto text-center space-y-6 sm:space-y-8">

@@ -1,5 +1,5 @@
 import { useState, useMemo, ReactNode } from "react";
-import { FileCode, GitGraph, Network, FlameKindling, Thermometer, GitCommit, Workflow, Route } from "lucide-react";
+import { FileCode, GitGraph, Network, FlameKindling, Thermometer, Workflow, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Citation } from "./ChatMessage";
 
@@ -41,7 +41,6 @@ export function ResponseTabs({ content, citations, children }: ResponseTabsProps
       { id: "deps", label: "Dependencies", icon: <Network className="w-3.5 h-3.5" />, available: hasImports || citationHasImports },
       { id: "calls", label: "Call Graph", icon: <FlameKindling className="w-3.5 h-3.5" />, available: hasFunctions || citationHasFunctions },
       { id: "complexity", label: "Complexity", icon: <Thermometer className="w-3.5 h-3.5" />, available: hasFunctions || citationHasFunctions },
-      { id: "blame", label: "Git Blame", icon: <GitCommit className="w-3.5 h-3.5" />, available: hasCitations },
       { id: "types", label: "Type Flow", icon: <Route className="w-3.5 h-3.5" />, available: hasTypes },
     ];
   }, [content, citations]);

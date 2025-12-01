@@ -135,6 +135,7 @@ CRITICAL INSTRUCTIONS:
 4. Be concise and professional. Focus on the most relevant parts.
 5. Always cite file paths and line numbers.
 6. Do not output excessive code blocks; only what is necessary.
+7. When explaining flows, architecture, or relationships, include a Mermaid diagram using \`\`\`mermaid blocks.
 
 Example:
 User: "How is auth handled?"
@@ -181,6 +182,7 @@ CRITICAL INSTRUCTIONS:
 4. Be concise and professional. Focus on the most relevant parts.
 5. Always cite file paths and line numbers.
 6. Do not output excessive code blocks; only what is necessary.
+7. When explaining flows, architecture, or relationships, include a Mermaid diagram using \`\`\`mermaid blocks.
 
 Example:
 User: "How is auth handled?"
