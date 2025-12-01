@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'nexu',
-  description: 'RAG for codebases',
+  title: 'nexu API',
+  description: 'API for nexu - RAG for codebases',
 };
 
 export default function RootLayout({
@@ -13,9 +12,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-background text-text-primary antialiased">
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
