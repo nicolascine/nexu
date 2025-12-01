@@ -42,7 +42,7 @@ const Home = () => {
     <div className="bg-background min-h-screen">
       {/* Header */}
       <header className="top-0 z-50 sticky bg-background/95 supports-[backdrop-filter]:bg-background/60 backdrop-blur border-border border-b">
-        <div className="flex justify-between items-center mx-auto px-3 sm:px-4 h-14 sm:h-16 container">
+        <div className="flex justify-between items-center mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl h-14 sm:h-16">
           <div className="flex items-center gap-2">
             {/* <Link2 className="w-5 sm:w-6 h-5 sm:h-6 text-primary" /> */}
             <span className="font-semibold text-lg sm:text-xl">nexu</span>
@@ -59,7 +59,7 @@ const Home = () => {
       </header>
 
       {/* Hero */}
-      <section className="mx-auto px-3 sm:px-4 py-10 sm:py-16 md:py-24 container">
+      <section className="mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 md:py-20 max-w-6xl">
         <div className="space-y-4 sm:space-y-6 mx-auto max-w-3xl text-center">
           <h1 className="font-bold text-3xl sm:text-4xl md:text-6xl tracking-tight">
             Chat with your{" "}
@@ -101,7 +101,7 @@ const Home = () => {
       </section>
 
       {/* Filters */}
-      <section className="mx-auto px-3 sm:px-4 pb-4 sm:pb-8 container">
+      <section className="mx-auto px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 max-w-6xl">
         <div className="flex items-center gap-1.5 sm:gap-2">
           <Badge variant="secondary" className="text-xs sm:text-sm">
             {repositories.length} indexed {repositories.length === 1 ? "repository" : "repositories"}
@@ -110,7 +110,7 @@ const Home = () => {
       </section>
 
       {/* Codebase Gallery */}
-      <section className="mx-auto px-3 sm:px-4 pb-16 sm:pb-24 container">
+      <section className="mx-auto px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24 max-w-6xl">
         {isLoading && (
           <div className="flex justify-center items-center py-12 sm:py-16">
             <Loader2 className="w-6 h-6 text-muted-foreground animate-spin" />
@@ -194,7 +194,7 @@ const Home = () => {
 
       {/* Footer */}
       <footer className="py-8 sm:py-12 border-border border-t">
-        <div className="mx-auto px-3 sm:px-4 container">
+        <div className="mx-auto px-4 sm:px-6 lg:px-8 max-w-6xl">
           <div className="flex md:flex-row flex-col justify-between items-center gap-4 text-muted-foreground text-xs sm:text-sm">
             <div className="flex items-center gap-2">
               <span>
