@@ -92,7 +92,7 @@ export function ChatMessage({
   return (
     <div className={cn(
       "group px-3 sm:px-4 py-3 sm:py-4 w-full animate-fade-in",
-      isUser ? "bg-surface" : "bg-background"
+      isUser ? "bg-surface dark:bg-[#2b313a]" : "bg-background"
     )}>
       <div className="mx-auto max-w-3xl">
         <div className="flex items-start gap-2 sm:gap-3">
@@ -165,7 +165,7 @@ export function ChatMessage({
             {isUser ? (
               <div className={cn(
                 "max-w-none prose prose-sm",
-                "prose-p:text-foreground prose-p:leading-7 prose-p:my-3",
+                "prose-p:leading-6 prose-p:my-2",
                 "text-sm"
               )}>
                 {content}
@@ -175,16 +175,14 @@ export function ChatMessage({
                 {(activeTab) => (
                   <div className={cn(
                     "max-w-none prose prose-sm",
-                    "prose-p:text-foreground/90 prose-p:leading-8 prose-p:my-4",
-                    "prose-headings:text-foreground/90 prose-headings:font-medium prose-headings:my-4",
-                    "prose-strong:text-foreground prose-strong:font-medium",
-                    "prose-code:text-foreground prose-code:bg-muted/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-[13px] prose-code:font-normal",
+                    "prose-p:leading-7 prose-p:my-3",
+                    "prose-headings:font-medium prose-headings:my-3",
+                    "prose-strong:font-medium",
+                    "prose-code:bg-muted/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-[13px] prose-code:font-normal",
                     "prose-code:before:content-none prose-code:after:content-none",
-                    "prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-4",
-                    "prose-ul:my-6 prose-ol:my-6 prose-li:my-3 prose-li:leading-7",
-                    "prose-ul:list-disc prose-ol:list-decimal", // Ensure markers are visible
-                    "prose-li:marker:text-muted-foreground/60", // Muted markers
-                    "dark:prose-invert"
+                    "prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-3",
+                    "prose-ul:my-4 prose-ol:my-4 prose-li:my-2 prose-li:leading-7",
+                    "prose-ul:list-disc prose-ol:list-decimal" // Ensure markers are visible
                   )}>
                     {renderContent(activeTab)}
                     {isStreaming && (
