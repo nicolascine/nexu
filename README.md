@@ -1,12 +1,8 @@
 # nexu
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
-
 **Chat with your codebase.** AST-aware chunking + graph expansion for precise code retrieval.
 
-[Live Demo](https://nexu.sh) | [Documentation](#docs)
+[Live Demo](https://nexu.sh)
 
 ## why nexu?
 
