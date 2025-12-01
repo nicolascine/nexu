@@ -1,6 +1,13 @@
 import { CodeBlock } from "@/components/CodeBlock";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { ReactNode } from "react";
+import { marked } from "marked";
+
+// Configure marked for safe rendering
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+});
 
 interface CodeBlockMatch {
   type: "code";
@@ -86,10 +93,12 @@ export function renderMarkdownContent(content: string): ReactNode[] {
       );
     }
     
+    // Parse markdown text to HTML
+    const html = marked.parse(block.content) as string;
     return (
       <div
         key={index}
-        dangerouslySetInnerHTML={{ __html: block.content }}
+        dangerouslySetInnerHTML={{ __html: html }}
       />
     );
   }).filter(Boolean);
