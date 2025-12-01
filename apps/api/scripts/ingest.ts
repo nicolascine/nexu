@@ -260,54 +260,78 @@ async function saveToPgVector(
   const { Pool } = await import('pg');
   const pool = new Pool({ connectionString, connectionTimeoutMillis: 30000 });
 
+  const BATCH_SIZE = 100; // commit every 100 chunks
+
   try {
     const client = await pool.connect();
 
     try {
+      // Step 1: Delete old data (separate transaction)
       await client.query('BEGIN');
-
-      // delete old chunks for this repo
       await client.query('DELETE FROM chunks WHERE repository_id = $1', [repositoryId]);
       await client.query('DELETE FROM graph_edges WHERE from_file LIKE $1', [`${repositoryId}:%`]);
       await client.query('DELETE FROM graph_nodes WHERE filepath LIKE $1', [`${repositoryId}:%`]);
+      await client.query('COMMIT');
+      console.log(`  Cleared old data for ${repositoryId}`);
 
-      // insert chunks (upsert to handle duplicates)
-      for (const entry of entries) {
-        const embeddingStr = `[${entry.embedding.join(',')}]`;
-        await client.query(`
-          INSERT INTO chunks (
-            id, filepath, start_line, end_line, node_type, name, language,
-            content, imports, exports, types, embedding, repository_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::vector, $13)
-          ON CONFLICT (id) DO UPDATE SET
-            filepath = EXCLUDED.filepath,
-            start_line = EXCLUDED.start_line,
-            end_line = EXCLUDED.end_line,
-            node_type = EXCLUDED.node_type,
-            name = EXCLUDED.name,
-            language = EXCLUDED.language,
-            content = EXCLUDED.content,
-            imports = EXCLUDED.imports,
-            exports = EXCLUDED.exports,
-            types = EXCLUDED.types,
-            embedding = EXCLUDED.embedding,
-            repository_id = EXCLUDED.repository_id
-        `, [
-          entry.id,
-          entry.chunk.filepath,
-          entry.chunk.startLine,
-          entry.chunk.endLine,
-          entry.chunk.nodeType,
-          entry.chunk.name,
-          entry.chunk.language,
-          entry.chunk.content,
-          entry.chunk.imports,
-          entry.chunk.exports,
-          entry.chunk.types,
-          embeddingStr,
-          repositoryId,
-        ]);
+      // Step 2: Insert chunks in batches with progress
+      const totalBatches = Math.ceil(entries.length / BATCH_SIZE);
+      let insertedCount = 0;
+
+      for (let batchNum = 0; batchNum < totalBatches; batchNum++) {
+        const start = batchNum * BATCH_SIZE;
+        const end = Math.min(start + BATCH_SIZE, entries.length);
+        const batchEntries = entries.slice(start, end);
+
+        await client.query('BEGIN');
+
+        for (const entry of batchEntries) {
+          const embeddingStr = `[${entry.embedding.join(',')}]`;
+          await client.query(`
+            INSERT INTO chunks (
+              id, filepath, start_line, end_line, node_type, name, language,
+              content, imports, exports, types, embedding, repository_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::vector, $13)
+            ON CONFLICT (id) DO UPDATE SET
+              filepath = EXCLUDED.filepath,
+              start_line = EXCLUDED.start_line,
+              end_line = EXCLUDED.end_line,
+              node_type = EXCLUDED.node_type,
+              name = EXCLUDED.name,
+              language = EXCLUDED.language,
+              content = EXCLUDED.content,
+              imports = EXCLUDED.imports,
+              exports = EXCLUDED.exports,
+              types = EXCLUDED.types,
+              embedding = EXCLUDED.embedding,
+              repository_id = EXCLUDED.repository_id
+          `, [
+            entry.id,
+            entry.chunk.filepath,
+            entry.chunk.startLine,
+            entry.chunk.endLine,
+            entry.chunk.nodeType,
+            entry.chunk.name,
+            entry.chunk.language,
+            entry.chunk.content,
+            entry.chunk.imports,
+            entry.chunk.exports,
+            entry.chunk.types,
+            embeddingStr,
+            repositoryId,
+          ]);
+        }
+
+        await client.query('COMMIT');
+        insertedCount += batchEntries.length;
+        const progress = Math.round((insertedCount / entries.length) * 100);
+        process.stdout.write(`\r  Saving chunks: ${progress}% (${insertedCount}/${entries.length})`);
       }
+
+      console.log(''); // newline after progress
+
+      // Step 3: Insert graph data (separate transaction)
+      await client.query('BEGIN');
 
       // insert graph edges
       for (const [from, toSet] of graph.edges.entries()) {
