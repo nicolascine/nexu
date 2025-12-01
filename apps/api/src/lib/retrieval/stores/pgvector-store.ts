@@ -37,19 +37,19 @@ export class PgVectorStore implements IVectorStore {
     Pool = pg.Pool;
 
     // Custom lookup that prefers IPv6 (for Supabase IPv6-only hosts)
-    const lookup = (
-      hostname: string,
-      options: { family?: number; all?: boolean },
-      callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
-    ) => {
-      dns.lookup(hostname, { family: 6, ...options }, (err, address, family) => {
+    // @ts-ignore - Complex types for dns.lookup overloads
+    const lookup: typeof dns.lookup = (hostname: string, options: any, callback: any) => {
+      const opts = typeof options === 'object' ? options : { family: options };
+      const cb = typeof options === 'function' ? options : callback;
+
+      dns.lookup(hostname, { ...opts, family: 6 }, ((err: any, address: any, family: any) => {
         if (err) {
           // Fallback to IPv4 if IPv6 fails
-          dns.lookup(hostname, { family: 4, ...options }, callback);
+          dns.lookup(hostname, { ...opts, family: 4 }, cb);
         } else {
-          callback(err, address, family);
+          cb(err, address, family);
         }
-      });
+      }) as any);
     };
 
     this.pool = new Pool({
