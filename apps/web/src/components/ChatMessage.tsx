@@ -1,7 +1,7 @@
 import { useToast } from "@/hooks/use-toast";
 import { extractAllCode, renderDiagramOnly, renderMarkdownContent } from "@/lib/markdown";
 import { cn } from "@/lib/utils";
-import { Check, Copy, RotateCcw } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { CitationCard } from "./CitationCard";
 import { ResponseTabs } from "./ResponseTabs";
@@ -18,6 +18,49 @@ export interface Citation {
   lines: string;
   code: string;
   url: string;
+}
+
+const INITIAL_CITATIONS_SHOWN = 3;
+
+function CitationsList({ citations }: { citations: Citation[] }) {
+  const [showAll, setShowAll] = useState(false);
+  const hasMore = citations.length > INITIAL_CITATIONS_SHOWN;
+  const visibleCitations = showAll ? citations : citations.slice(0, INITIAL_CITATIONS_SHOWN);
+
+  return (
+    <div className="space-y-2 mt-4 pt-2">
+      {visibleCitations.map((citation, index) => (
+        <CitationCard
+          key={citation.id}
+          citation={citation}
+          index={index + 1}
+        />
+      ))}
+      {hasMore && (
+        <button
+          onClick={() => setShowAll(!showAll)}
+          className={cn(
+            "w-full flex items-center justify-center gap-1.5 py-2 text-xs",
+            "text-muted-foreground hover:text-foreground",
+            "border border-dashed border-border rounded-md",
+            "hover:bg-muted/50 transition-colors"
+          )}
+        >
+          {showAll ? (
+            <>
+              <ChevronUp className="w-3.5 h-3.5" />
+              Show less
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-3.5 h-3.5" />
+              Show {citations.length - INITIAL_CITATIONS_SHOWN} more sources
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
 }
 
 interface ChatMessageProps {
@@ -195,15 +238,7 @@ export function ChatMessage({
 
             {/* Citations */}
             {citations && citations.length > 0 && (
-              <div className="space-y-2 mt-4 pt-2">
-                {citations.map((citation, index) => (
-                  <CitationCard
-                    key={citation.id}
-                    citation={citation}
-                    index={index + 1}
-                  />
-                ))}
-              </div>
+              <CitationsList citations={citations} />
             )}
           </div>
         </div>
