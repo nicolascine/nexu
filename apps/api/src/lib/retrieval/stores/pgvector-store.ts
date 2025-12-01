@@ -31,12 +31,32 @@ export class PgVectorStore implements IVectorStore {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    // Dynamic import pg
+    // Dynamic import pg and dns
     const pg = await import('pg');
+    const dns = await import('dns');
     Pool = pg.Pool;
+
+    // Parse connection string to extract host
+    const url = new URL(this.connectionString);
+    const host = url.hostname;
+
+    // Custom lookup that prefers IPv6 (for Supabase IPv6-only)
+    const lookup = (hostname: string, options: dns.LookupOptions, callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
+      dns.lookup(hostname, { family: 6, ...options }, (err, address, family) => {
+        if (err) {
+          // Fallback to IPv4 if IPv6 fails
+          dns.lookup(hostname, { family: 4, ...options }, callback);
+        } else {
+          callback(err, address, family);
+        }
+      });
+    };
 
     this.pool = new Pool({
       connectionString: this.connectionString,
+      ssl: { rejectUnauthorized: false },
+      // @ts-ignore - lookup is not in PoolConfig types but works
+      lookup,
     });
 
     // Test connection
