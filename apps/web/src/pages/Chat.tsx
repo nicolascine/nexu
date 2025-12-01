@@ -1,21 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { Settings, Network, ArrowLeft, Square } from "lucide-react";
-import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
-import { IndexStatus } from "@/components/IndexStatus";
-import { CodeGraph } from "@/components/CodeGraph";
+import { ChatMessage } from "@/components/ChatMessage";
 import { CodeThemeSelector } from "@/components/CodeThemeSelector";
+import { EmptyState } from "@/components/EmptyState";
+import { IndexStatus } from "@/components/IndexStatus";
 import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
 import { ScrollToBottom } from "@/components/ScrollToBottom";
-import { EmptyState } from "@/components/EmptyState";
-import { useNexuChat, getMessageContent } from "@/hooks/use-chat";
+import { getMessageContent, useNexuChat } from "@/hooks/use-chat";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import { getRepositories, parseRepoSlug } from "@/lib/api";
-
-type ViewMode = "chat" | "graph";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Square } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 
 function formatTimeAgo(date: string): string {
   const now = new Date();
@@ -30,7 +26,6 @@ function formatTimeAgo(date: string): string {
 
 const Chat = () => {
   const { codebaseId: slug } = useParams();
-  const [viewMode, setViewMode] = useState<ViewMode>("chat");
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -58,6 +53,8 @@ const Chat = () => {
     handleSendMessage: originalSendMessage,
   } = useNexuChat({
     repositoryId: currentRepo?.id,
+    githubUrl: currentRepo?.url,
+    defaultBranch: currentRepo?.defaultBranch,
     onError: (err) => {
       toast({
         title: "Error",
@@ -82,7 +79,20 @@ const Chat = () => {
 
   // Auto-scroll on new messages
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll if we were already near the bottom or if it's a new message
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isNearBottom = distanceFromBottom < 100;
+    
+    // Trigger dependency on messages length
+    const _ = messages.length;
+
+    if (isNearBottom) {
+      scrollToBottom();
+    }
   }, [messages, scrollToBottom]);
 
   // Track scroll position for scroll-to-bottom button
@@ -103,11 +113,6 @@ const Chat = () => {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      // Toggle graph view
-      if ((e.metaKey || e.ctrlKey) && e.key === "g") {
-        e.preventDefault();
-        setViewMode((prev) => (prev === "chat" ? "graph" : "chat"));
-      }
       // Show shortcuts modal
       if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
         const activeElement = document.activeElement;
@@ -130,16 +135,6 @@ const Chat = () => {
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [showShortcuts]);
 
-  const handleNodeClick = (node: any) => {
-    toast({
-      title: node.name,
-      description: `${node.type} • Click to explore in chat`,
-    });
-
-    setViewMode("chat");
-    handleSendMessage(`Tell me about ${node.name}`);
-  };
-
   // Get last user message for retry
   const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
   
@@ -151,45 +146,31 @@ const Chat = () => {
   }, [lastUserMessage, handleSendMessage]);
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex flex-col bg-background h-screen">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-border">
+      <header className="flex justify-between items-center px-4 py-2 border-border border-b">
         <div className="flex items-center gap-3">
           <Link to="/">
-            <button className="p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <button type="button" className="hover:bg-muted p-2 rounded-md text-muted-foreground hover:text-foreground transition-colors">
               <ArrowLeft className="w-4 h-4" />
             </button>
           </Link>
           <div>
-            <h1 className="text-base font-semibold text-foreground">nexu</h1>
-            <p className="text-xs text-muted-foreground">{currentRepo?.fullName || slug}</p>
+            <h1 className="font-semibold text-foreground text-base">nexu</h1>
+            <p className="text-muted-foreground text-xs">{currentRepo?.fullName || slug}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
           {isLoading && (
             <button
+              type="button"
               onClick={stop}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+              className="inline-flex items-center gap-2 hover:bg-destructive/10 px-3 py-1.5 rounded-md text-destructive text-sm transition-colors"
             >
-              <Square className="w-3 h-3 fill-current" />
+              <Square className="fill-current w-3 h-3" />
               <span className="hidden sm:inline">Stop</span>
             </button>
           )}
-          <button
-            onClick={() => setViewMode(viewMode === "chat" ? "graph" : "chat")}
-            className={cn(
-              "inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors",
-              viewMode === "graph"
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-          >
-            <Network className="w-4 h-4" />
-            <span className="hidden sm:inline">Graph</span>
-          </button>
-          <button className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-            <Settings className="w-4 h-4" />
-          </button>
           <CodeThemeSelector />
         </div>
       </header>
@@ -200,22 +181,16 @@ const Chat = () => {
           repository={currentRepo.fullName}
           chunks={currentRepo.chunkCount}
           lastUpdate={formatTimeAgo(currentRepo.indexedAt)}
-          onReindex={() => console.log("Re-indexing...")}
         />
       )}
 
       {/* Main Content */}
-      {viewMode === "graph" ? (
-        <div className="flex-1 overflow-hidden">
-          <CodeGraph onNodeClick={handleNodeClick} codebaseId={currentRepo?.id} />
-        </div>
-      ) : (
-        <>
-          {/* Messages */}
-          <div 
-            ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto relative"
-          >
+      <>
+        {/* Messages */}
+        <div 
+          ref={messagesContainerRef}
+          className="relative flex-1 overflow-y-auto"
+        >
             {/* Empty state with example questions */}
             {messages.length === 0 && (
               <EmptyState onSelectExample={handleSendMessage} />
@@ -267,7 +242,7 @@ const Chat = () => {
             onShowShortcuts={() => setShowShortcuts(true)}
           />
         </>
-      )}
+      )
 
       {/* Keyboard Shortcuts Modal */}
       <KeyboardShortcutsModal
