@@ -1,141 +1,42 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Star, GitFork, Clock, TrendingUp, Code2, Link2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Search, Star, Clock, TrendingUp, Code2, Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CodeThemeSelector } from "@/components/CodeThemeSelector";
 import { cn } from "@/lib/utils";
+import { getRepositories, type Repository } from "@/lib/api";
 
-interface Codebase {
-  id: string;
-  name: string;
-  description: string;
-  owner: string;
-  stars: number;
-  forks: number;
-  language: string;
-  lastIndexed: string;
-  chunks: number;
-  featured?: boolean;
+function formatTimeAgo(date: string): string {
+  const now = new Date();
+  const then = new Date(date);
+  const diffMs = now.getTime() - then.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays > 0) return `${diffDays}d ago`;
+  if (diffHours > 0) return `${diffHours}h ago`;
+  return "just now";
 }
-
-const mockCodebases: Codebase[] = [
-  {
-    id: "calcom",
-    name: "cal.com",
-    description: "Scheduling infrastructure for absolutely everyone",
-    owner: "calcom",
-    stars: 28400,
-    forks: 6200,
-    language: "TypeScript",
-    lastIndexed: "2h ago",
-    chunks: 15234,
-    featured: true,
-  },
-  {
-    id: "shadcn-ui",
-    name: "shadcn/ui",
-    description: "Beautifully designed components built with Radix UI and Tailwind CSS",
-    owner: "shadcn",
-    stars: 52100,
-    forks: 3100,
-    language: "TypeScript",
-    lastIndexed: "4h ago",
-    chunks: 8943,
-    featured: true,
-  },
-  {
-    id: "supabase",
-    name: "supabase",
-    description: "The open source Firebase alternative. Postgres database, Authentication, Storage, and more.",
-    owner: "supabase",
-    stars: 67800,
-    forks: 6400,
-    language: "TypeScript",
-    lastIndexed: "6h ago",
-    chunks: 32187,
-    featured: true,
-  },
-  {
-    id: "nextjs",
-    name: "next.js",
-    description: "The React Framework for Production",
-    owner: "vercel",
-    stars: 121500,
-    forks: 26100,
-    language: "JavaScript",
-    lastIndexed: "1h ago",
-    chunks: 28391,
-  },
-  {
-    id: "astro",
-    name: "astro",
-    description: "The web framework for content-driven websites",
-    owner: "withastro",
-    stars: 43200,
-    forks: 2300,
-    language: "TypeScript",
-    lastIndexed: "3h ago",
-    chunks: 12456,
-  },
-  {
-    id: "nuxt",
-    name: "nuxt",
-    description: "The Intuitive Vue Framework",
-    owner: "nuxt",
-    stars: 51800,
-    forks: 4700,
-    language: "TypeScript",
-    lastIndexed: "5h ago",
-    chunks: 18723,
-  },
-  {
-    id: "remix",
-    name: "remix",
-    description: "Build Better Websites. Create modern, resilient user experiences with web fundamentals.",
-    owner: "remix-run",
-    stars: 27900,
-    forks: 2400,
-    language: "TypeScript",
-    lastIndexed: "7h ago",
-    chunks: 9834,
-  },
-  {
-    id: "trpc",
-    name: "trpc",
-    description: "End-to-end typesafe APIs made easy",
-    owner: "trpc",
-    stars: 32400,
-    forks: 1200,
-    language: "TypeScript",
-    lastIndexed: "8h ago",
-    chunks: 6721,
-  },
-  {
-    id: "prisma",
-    name: "prisma",
-    description: "Next-generation Node.js and TypeScript ORM",
-    owner: "prisma",
-    stars: 36900,
-    forks: 1400,
-    language: "TypeScript",
-    lastIndexed: "4h ago",
-    chunks: 24567,
-  },
-];
 
 const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "featured">("all");
 
-  const filteredCodebases = mockCodebases.filter((codebase) => {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["repositories"],
+    queryFn: getRepositories,
+  });
+
+  const repositories = data?.repositories || [];
+
+  const filteredCodebases = repositories.filter((repo) => {
     const matchesSearch =
-      codebase.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      codebase.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesFilter = filter === "all" || (filter === "featured" && codebase.featured);
-    return matchesSearch && matchesFilter;
+      repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (repo.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+    return matchesSearch;
   });
 
   return (
@@ -209,89 +110,91 @@ const Home = () => {
       {/* Filters */}
       <section className="container mx-auto px-3 sm:px-4 pb-4 sm:pb-8">
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <Button
-            variant={filter === "all" ? "default" : "ghost"}
-            size="sm"
-            className="text-xs sm:text-sm h-8 sm:h-9 px-2.5 sm:px-3"
-            onClick={() => setFilter("all")}
-          >
-            All
-          </Button>
-          <Button
-            variant={filter === "featured" ? "default" : "ghost"}
-            size="sm"
-            className="text-xs sm:text-sm h-8 sm:h-9 px-2.5 sm:px-3"
-            onClick={() => setFilter("featured")}
-          >
-            Featured
-          </Button>
+          <Badge variant="secondary" className="text-xs sm:text-sm">
+            {repositories.length} indexed {repositories.length === 1 ? "repository" : "repositories"}
+          </Badge>
         </div>
       </section>
 
       {/* Codebase Gallery */}
       <section className="container mx-auto px-3 sm:px-4 pb-16 sm:pb-24">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-          {filteredCodebases.map((codebase) => (
-            <Link key={codebase.id} to={`/chat/${codebase.id}`}>
-              <Card
-                className={cn(
-                  "group relative h-full p-4 sm:p-6 transition-all hover:shadow-lg active:shadow-lg hover:border-primary/50 active:border-primary/50",
-                  "cursor-pointer overflow-hidden"
-                )}
-              >
-                {codebase.featured && (
-                  <Badge className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-primary/10 text-primary border-primary/20 text-[10px] sm:text-xs">
-                    Featured
-                  </Badge>
-                )}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12 sm:py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">Loading repositories...</span>
+          </div>
+        )}
 
-                <div className="space-y-3 sm:space-y-4">
-                  <div>
-                    <div className="flex items-start justify-between mb-1.5 sm:mb-2 pr-16 sm:pr-20">
-                      <h3 className="text-sm sm:text-lg font-semibold group-hover:text-primary transition-colors truncate">
-                        {codebase.owner}/{codebase.name}
-                      </h3>
-                    </div>
-                    <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
-                      {codebase.description}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-3 h-3" />
-                      {(codebase.stars / 1000).toFixed(1)}k
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <GitFork className="w-3 h-3" />
-                      {(codebase.forks / 1000).toFixed(1)}k
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-primary" />
-                      {codebase.language}
-                    </div>
-                  </div>
-
-                  <div className="pt-3 sm:pt-4 border-t border-border">
-                    <div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {codebase.lastIndexed}
-                      </div>
-                      <div>{codebase.chunks.toLocaleString()} chunks</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="absolute inset-0 border-2 border-primary opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none" />
-              </Card>
-            </Link>
-          ))}
-        </div>
-
-        {filteredCodebases.length === 0 && (
+        {error && (
           <div className="text-center py-12 sm:py-16">
-            <p className="text-sm sm:text-base text-muted-foreground">No codebases found matching your search.</p>
+            <p className="text-sm sm:text-base text-destructive">Failed to load repositories. Please try again.</p>
+          </div>
+        )}
+
+        {!isLoading && !error && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+            {filteredCodebases.map((repo) => (
+              <Link key={repo.id} to={`/chat/${encodeURIComponent(repo.id)}`}>
+                <Card
+                  className={cn(
+                    "group relative h-full p-4 sm:p-6 transition-all hover:shadow-lg active:shadow-lg hover:border-primary/50 active:border-primary/50",
+                    "cursor-pointer overflow-hidden"
+                  )}
+                >
+                  {repo.status === "ready" && (
+                    <Badge className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-green-500/10 text-green-600 border-green-500/20 text-[10px] sm:text-xs">
+                      Ready
+                    </Badge>
+                  )}
+
+                  <div className="space-y-3 sm:space-y-4">
+                    <div>
+                      <div className="flex items-start justify-between mb-1.5 sm:mb-2 pr-16 sm:pr-20">
+                        <h3 className="text-sm sm:text-lg font-semibold group-hover:text-primary transition-colors truncate">
+                          {repo.fullName}
+                        </h3>
+                      </div>
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2">
+                        {repo.description || "No description available"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 sm:gap-4 text-[10px] sm:text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        {repo.stars >= 1000 ? `${(repo.stars / 1000).toFixed(1)}k` : repo.stars}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-primary" />
+                        {repo.language || "Unknown"}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 sm:pt-4 border-t border-border">
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTimeAgo(repo.indexedAt)}
+                        </div>
+                        <div>{repo.chunkCount.toLocaleString()} chunks</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="absolute inset-0 border-2 border-primary opacity-0 group-hover:opacity-100 transition-opacity rounded-lg pointer-events-none" />
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {!isLoading && !error && filteredCodebases.length === 0 && (
+          <div className="text-center py-12 sm:py-16">
+            <p className="text-sm sm:text-base text-muted-foreground">
+              {repositories.length === 0
+                ? "No repositories indexed yet. Index a repository to get started."
+                : "No codebases found matching your search."}
+            </p>
           </div>
         )}
       </section>
