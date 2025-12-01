@@ -36,12 +36,12 @@ export class PgVectorStore implements IVectorStore {
     const dns = await import('dns');
     Pool = pg.Pool;
 
-    // Parse connection string to extract host
-    const url = new URL(this.connectionString);
-    const host = url.hostname;
-
-    // Custom lookup that prefers IPv6 (for Supabase IPv6-only)
-    const lookup = (hostname: string, options: dns.LookupOptions, callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
+    // Custom lookup that prefers IPv6 (for Supabase IPv6-only hosts)
+    const lookup = (
+      hostname: string,
+      options: { family?: number; all?: boolean },
+      callback: (err: NodeJS.ErrnoException | null, address: string, family: number) => void
+    ) => {
       dns.lookup(hostname, { family: 6, ...options }, (err, address, family) => {
         if (err) {
           // Fallback to IPv4 if IPv6 fails
