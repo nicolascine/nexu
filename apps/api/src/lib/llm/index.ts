@@ -108,6 +108,7 @@ ${chunksContext}
 Answer the user's query based ONLY on the code above.
 Always cite your sources with exact file paths and line numbers.
 If information is not in the provided code, say so.
+DO NOT start your answer with "Based on the code...", "The provided context...", or similar phrases. Start directly with the answer.
 </instructions>
 
 <query>
