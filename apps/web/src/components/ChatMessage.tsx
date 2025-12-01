@@ -176,12 +176,14 @@ export function ChatMessage({
                   <div className={cn(
                     "max-w-none prose prose-sm",
                     "prose-p:text-foreground/90 prose-p:leading-8 prose-p:my-4",
-                    "prose-headings:text-foreground prose-headings:font-semibold prose-headings:my-4",
-                    "prose-strong:text-foreground prose-strong:font-semibold",
-                    "prose-code:text-foreground prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm",
+                    "prose-headings:text-foreground/90 prose-headings:font-medium prose-headings:my-4",
+                    "prose-strong:text-foreground prose-strong:font-medium",
+                    "prose-code:text-foreground prose-code:bg-muted/50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-[13px] prose-code:font-normal",
                     "prose-code:before:content-none prose-code:after:content-none",
                     "prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-4",
-                    "prose-ul:my-6 prose-ol:my-6 prose-li:my-3",
+                    "prose-ul:my-6 prose-ol:my-6 prose-li:my-3 prose-li:leading-7",
+                    "prose-ul:list-disc prose-ol:list-decimal", // Ensure markers are visible
+                    "prose-li:marker:text-muted-foreground/60", // Muted markers
                     "dark:prose-invert"
                   )}>
                     {renderContent(activeTab)}
