@@ -1,21 +1,51 @@
 # nexu
 
-RAG for codebases. AST-aware chunking + graph expansion.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 
-> Technical challenge: Build a chat interface to query large codebases (cal.com monorepo, ~500k LOC) without exceeding LLM context limits.
+**Chat with your codebase.** AST-aware chunking + graph expansion for precise code retrieval.
 
-## the problem
+[Live Demo](https://nexu.sh) | [Documentation](#docs)
 
-LLMs have token limits. Cal.com has ~500k LOC across 6000+ TypeScript files. The question isn't "how do we fit all the code?" - it's "how do we retrieve exactly what matters?"
+## why nexu?
 
-## how nexu solves the context limit
+LLMs have token limits. Large codebases have millions of lines. The question isn't "how do we fit all the code?" - it's "how do we retrieve exactly what matters?"
 
-### ingestion pipeline (offline)
+nexu solves this with:
+- **AST-based chunking** - Code is divided at function/class boundaries, never mid-statement
+- **Dependency graph** - When you find a function, automatically include its imports
+- **Two-stage retrieval** - Vector search finds candidates, LLM reranking picks the best
+- **Lean context** - 5-10k tokens is the sweet spot; more tokens = more noise
+
+## quick start
+
+```bash
+# clone and install
+git clone https://github.com/nicholasgcoles/nexu
+cd nexu && pnpm install
+
+# configure
+cp apps/api/.env.example apps/api/.env.local
+# add your ANTHROPIC_API_KEY and OPENAI_API_KEY
+
+# index a repository
+pnpm ingest -- --repo https://github.com/owner/repo --prod
+
+# start the app
+pnpm dev
+# web: http://localhost:5173
+# api: http://localhost:3000
+```
+
+## how it works
+
+### ingestion pipeline
 
 ```mermaid
 flowchart LR
     subgraph Input
-        A[cal.com repo<br/>6000+ files]
+        A[GitHub repo]
     end
 
     subgraph Processing
@@ -36,14 +66,12 @@ flowchart LR
     style C fill:#f9f,stroke:#333
 ```
 
-> **Key insight:** Chunks respect syntactic boundaries (functions, classes). Never break code mid-statement. Each chunk is a complete semantic unit.
-
-### retrieval pipeline (online)
+### retrieval pipeline
 
 ```mermaid
 flowchart LR
     subgraph Query
-        Q["Where is availability<br/>validated?"]
+        Q["How does auth work?"]
     end
 
     subgraph "Stage 1: Search"
@@ -59,7 +87,7 @@ flowchart LR
     end
 
     subgraph Response
-        CTX[~5k tokens<br/>2.5% of context]
+        CTX[~5k tokens]
         LLM[Claude]
         ANS[Answer +<br/>Citations]
     end
@@ -70,360 +98,141 @@ flowchart LR
     style CTX fill:#9f9,stroke:#333
 ```
 
-> **Key insight:** Graph expansion follows imports/exports to add related code. LLM reranking filters noise. Result: precise, minimal context.
+## features
 
-### why this works
-
-1. **AST chunking** - Code is divided at function/class boundaries, never mid-statement
-2. **Dependency graph** - When you find `isAvailableHandler`, automatically include its imports
-3. **Two-stage retrieval** - Vector search finds candidates, LLM reranking picks the best
-4. **Lean context** - 5-10k tokens is the sweet spot; more tokens = more noise
-
-## quick start
-
-```bash
-# 1. clone and install
-git clone https://github.com/nicolascine/nexu
-cd nexu && pnpm install
-
-# 2. configure (see .env.example)
-cp .env.example .env.local
-# add your ANTHROPIC_API_KEY and OPENAI_API_KEY
-
-# 3. index cal.com
-git clone --depth 1 https://github.com/calcom/cal.com /tmp/cal.com
-npm run ingest -- --path /tmp/cal.com
-
-# 4. query
-npm run chat
-# or single query:
-npm run query -- "Where is availability validated?"
-```
-
-## approach
-
-nexu doesn't try to shove the whole codebase into context. instead:
-
-1. **structural chunking** - AST-based, preserves syntactic integrity
-2. **rich metadata** - imports, types, exports per chunk
-3. **dependency graph** - expands context following real relationships
-4. **two-stage retrieval** - semantic search + LLM reranking
-5. **precise citations** - path + lines, always
-
-## why it works
-
-### the "lost in the middle" problem
-
-research shows LLMs degrade on massive contexts - they attend to start and end, middle gets lost. more tokens ≠ better understanding.
-
-### our take
-
-instead of fighting the limit, work with it:
-- ~5k tokens of ultra-relevant context
-- AST chunking preserves structure
-- graph expansion adds only what's needed
-- LLM sees complete, coherent code
-
-## backed by research
-
-### cAST: structural chunking via AST
-
-our core approach is based on the **cAST paper** from Carnegie Mellon University (2025).
-
-**paper:** [arxiv.org/abs/2506.15655](https://arxiv.org/abs/2506.15655)
-**reference implementation:** [github.com/yilinjz/astchunk](https://github.com/yilinjz/astchunk)
-
-**why cAST matters:**
-
-traditional RAG systems chunk code by token count or line count. this breaks code mid-function, mid-class, destroying semantic meaning. cAST uses Abstract Syntax Trees to create chunks that respect code structure:
-
-- **+4.3 pts on Recall@5** vs fixed-size chunking
-- chunks align with functions, classes, types - never mid-statement
-- metadata (imports, exports, types) preserved per chunk
-- enables dependency graph construction for context expansion
-
-```
-fixed-size chunking:        cAST chunking:
-┌──────────────┐            ┌──────────────┐
-│ function foo │            │ function foo │
-│   const x =  │  broken!   │   const x =  │  complete
-├──────────────┤            │   return x   │  semantic
-│   return x   │            │ }            │  unit
-│ }            │            └──────────────┘
-│ function bar │            ┌──────────────┐
-└──────────────┤            │ function bar │
-```
-
-### other research
-
-- **Qodo.ai** (2024) - two-stage retrieval in production across 10k repos
-- **"Lost in the Middle"** (Liu et al. 2023) - why bigger context ≠ better
+- **Multi-repo support** - Index and chat with multiple repositories
+- **Streaming responses** - Real-time output with citations
+- **GitHub integration** - Direct links to source code
+- **Syntax highlighting** - Beautiful code display
+- **Resumable indexing** - Continue from checkpoint after failures
+- **Provider agnostic** - Works with Anthropic, OpenAI, or local LLMs
 
 ## stack
 
-vendor lock-in free by design.
+Vendor lock-in free by design.
 
-**core**
-- next.js 14 (app router) + tailwind + shadcn/ui
-- tree-sitter for AST parsing
-
-**vector storage**
-- pgvector (supabase or self-hosted postgres)
-
-**LLM providers** (swappable via abstraction layer)
-- anthropic (claude)
-- openai
-- local LLMs via OpenAI-compatible API:
-  - [ollama](https://ollama.ai) - simplest local setup
-  - [vllm](https://github.com/vllm-project/vllm) - production-grade inference
-  - [lm studio](https://lmstudio.ai) - GUI + local server
-  - deepseek, qwen, llama, etc.
-
-**embeddings** (also swappable)
-- openai text-embedding-3-small
-- local: nomic-embed-text, bge, etc. via ollama
-
-## architecture
-
-See [how nexu solves the context limit](#how-nexu-solves-the-context-limit) for visual diagrams.
-
-For implementation details, see `docs/architecture.md`.
-
-### API layer
-
-nexu exposes a REST API designed for multiple frontends (React web, Electron, CLI, VSCode plugin).
-
-```mermaid
-flowchart TB
-    subgraph Frontends
-        WEB[React Web App]
-        ELECTRON[Electron Desktop]
-        CLI[Ink CLI]
-        VSCODE[VSCode Plugin]
-    end
-
-    subgraph "Next.js API Routes"
-        CHAT["/api/chat<br/>(streaming)"]
-        SEARCH["/api/search"]
-        STATUS["/api/status"]
-    end
-
-    subgraph "Core Service (src/lib/nexu)"
-        INIT[initIndex]
-        SRCH[search]
-        GEN[chat / chatStream]
-    end
-
-    subgraph "Processing Layers"
-        RET[Retrieval<br/>vector + graph]
-        LLM[LLM<br/>generation]
-    end
-
-    WEB --> CHAT
-    ELECTRON --> CHAT
-    CLI --> SEARCH
-    VSCODE --> SEARCH
-
-    CHAT --> GEN
-    SEARCH --> SRCH
-    STATUS --> INIT
-
-    GEN --> RET
-    GEN --> LLM
-    SRCH --> RET
-
-    style CHAT fill:#f9f,stroke:#333
-    style GEN fill:#9f9,stroke:#333
-```
-
-**endpoints:**
-
-| endpoint | method | description |
-|----------|--------|-------------|
-| `/api/chat` | POST | Streaming chat (Vercel AI SDK compatible) |
-| `/api/search` | POST | Retrieval only, returns chunks |
-| `/api/status` | GET | Index status and configuration |
-
-## comparison
-
-| approach | context used | precision | cost |
-|----------|-------------|-----------|------|
-| naive (whole repo) | 200k+ tokens | low | high |
-| fixed-size chunking | 20-50k tokens | medium | medium |
-| **nexu (AST + graph)** | **5-10k tokens** | **high** | **low** |
-| agentic (with tools) | variable (50-150k) | medium | very high |
-
-## experiment: cal.com monorepo
-
-We tested nexu on the [cal.com](https://github.com/calcom/cal.com) monorepo - the target codebase for this technical challenge.
-
-### setup
-
-| component | configuration |
-|-----------|---------------|
-| Environment | Local (MacBook Pro M3) |
-| Embeddings | `nomic-embed-text` via Ollama |
-| LLM | `deepseek-coder-v2` via Ollama |
-| Reranking | LLM-based (same model) |
-| Vector store | Local JSON file |
-
-> **Note:** For production, we recommend OpenAI `text-embedding-3-small` for embeddings and Claude Sonnet 4.5 or GPT-5 for generation. Local models were used to demonstrate the system works fully offline.
-
-### indexing results
-
-| metric | value |
-|--------|-------|
-| TypeScript files | 6,451 |
-| Chunks extracted | 25,868 |
-| Graph edges | 11,812 |
-| Avg imports/file | 1.8 |
-| Index size | 287 MB |
-| Indexing time | ~45 min (Ollama embeddings) |
-
-### query test
-
-**Query:** "Where is availability validated?"
-
-**System response:**
-> Availability validation occurs primarily within the function `getUserAvailability` located in:
-> `packages/features/availability/lib/getUserAvailability.ts`
-
-**Verification:** The file exists (24KB) and contains:
-- Zod schema validation (`availabilitySchema`)
-- Imports from `getBusyTimesFromLimits`, `getWorkingHours`
-- Date range validation with `DateOverride`, `WorkingHours`
-- Integration with `BookingRepository`
-
-### performance
-
-| metric | value |
-|--------|-------|
-| Chunks retrieved | 5 |
-| Retrieval stage | reranked |
-| Tokens used | 2,943 |
-| Response time | ~30s (local LLM) |
-| Context usage | 1.5% of 200k window |
-
-The system correctly identified the core availability validation logic without hallucinating file paths or inventing code.
-
-## limitations
-
-- **broad queries** - "explain the whole architecture" needs multiple queries
-- **highly coupled code** - graph expansion can explode
-- **obscure languages** - tree-sitter might not have a parser
-- **legacy spaghetti** - AST chunking assumes somewhat structured code
+| Component | Options |
+|-----------|---------|
+| **LLM** | Anthropic Claude, OpenAI GPT, Ollama (local) |
+| **Embeddings** | OpenAI, Ollama (nomic-embed-text, etc.) |
+| **Vector Store** | pgvector (Supabase or self-hosted) |
+| **Frontend** | React + Vite + Tailwind + shadcn/ui |
+| **Backend** | Next.js 14 (API routes) |
+| **Parser** | tree-sitter (TypeScript, Python, Go, Rust, etc.) |
 
 ## configuration
 
 ```bash
-# .env.local
+# apps/api/.env.local
 
-# LLM provider: "anthropic" | "openai" | "ollama" | "custom"
-LLM_PROVIDER=anthropic
+# LLM
+LLM_PROVIDER=anthropic  # anthropic | openai | ollama
 LLM_MODEL=claude-sonnet-4-20250514
 
-# for local LLMs (ollama, vllm, lm studio)
-# LLM_PROVIDER=ollama
-# LLM_BASE_URL=http://localhost:11434/v1
-# LLM_MODEL=deepseek-coder-v2
-
-# embeddings: "openai" | "ollama"
+# Embeddings
 EMBEDDING_PROVIDER=openai
 EMBEDDING_MODEL=text-embedding-3-small
 
-# for local embeddings
-# EMBEDDING_PROVIDER=ollama
-# EMBEDDING_BASE_URL=http://localhost:11434/v1
-# EMBEDDING_MODEL=nomic-embed-text
-
-# API keys (only needed for cloud providers)
+# API Keys
 ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...
 
-# vector db
+# Database
 DATABASE_URL=postgresql://...
-```
-
-## web ui
-
-nexu includes a built-in chat interface at `http://localhost:3000`:
-
-- streaming responses with real-time output
-- source code display with syntax highlighting
-- expandable code chunks showing retrieved context
-- status badge showing indexed chunk count
-
-```bash
-npm run dev
-# open http://localhost:3000
-```
-
-## dev
-
-```bash
-pnpm install
-pnpm run ingest  # index cal.com (one-time)
-pnpm dev
-```
-
-### running with local LLMs
-
-```bash
-# install ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# pull a model
-ollama pull deepseek-coder-v2
-ollama pull nomic-embed-text
-
-# update .env.local to use ollama
-# then run normally
-pnpm dev
-```
-
-### docker-compose (local pgvector)
-
-For a production-like local environment with PostgreSQL + pgvector:
-
-```bash
-# start postgres with pgvector
-docker-compose up -d
-
-# configure to use pgvector
-export VECTOR_STORE_TYPE=pgvector
-export DATABASE_URL=postgresql://nexu:nexu@localhost:5432/nexu
-
-# ingest with pgvector
-npm run ingest -- --path /tmp/cal.com
-
-# run the app
-npm run dev
-```
-
-### vector store options
-
-nexu supports two vector store backends:
-
-| store | use case | config |
-|-------|----------|--------|
-| JSON | quick tests, development | `VECTOR_STORE_TYPE=json` (default) |
-| pgvector | production, docker, Supabase | `VECTOR_STORE_TYPE=pgvector` |
-
-```bash
-# JSON store (default) - stores in .nexu/vectors.json
-VECTOR_STORE_TYPE=json
-
-# pgvector - requires DATABASE_URL
 VECTOR_STORE_TYPE=pgvector
-DATABASE_URL=postgresql://nexu:nexu@localhost:5432/nexu
 ```
 
-## docs
+## project structure
 
-- `docs/architecture.md` - system design
-- `docs/science.md` - research backing
-- `docs/ui.md` - interface design
+```
+nexu/
+├── apps/
+│   ├── api/          # Next.js API (backend)
+│   │   ├── src/
+│   │   │   ├── app/api/     # API routes
+│   │   │   └── lib/         # Core logic
+│   │   └── scripts/         # Ingestion scripts
+│   └── web/          # React frontend (Vite)
+│       └── src/
+│           ├── components/  # UI components
+│           ├── hooks/       # React hooks
+│           └── pages/       # Routes
+└── packages/         # Shared packages (future)
+```
+
+## api endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/chat` | POST | Streaming chat with citations |
+| `/api/repositories` | GET | List indexed repositories |
+| `/api/search` | POST | Search chunks (retrieval only) |
+
+## backed by research
+
+Our chunking approach is based on the **cAST paper** from Carnegie Mellon University (2025):
+
+- [arxiv.org/abs/2506.15655](https://arxiv.org/abs/2506.15655)
+- **+4.3 pts on Recall@5** vs fixed-size chunking
+- Chunks align with functions, classes, types - never mid-statement
+
+## comparison
+
+| Approach | Context Used | Precision | Cost |
+|----------|-------------|-----------|------|
+| Naive (whole repo) | 200k+ tokens | Low | High |
+| Fixed-size chunking | 20-50k tokens | Medium | Medium |
+| **nexu (AST + graph)** | **5-10k tokens** | **High** | **Low** |
+
+## roadmap
+
+### v0.2 (next)
+- [ ] Interactive dependency graph visualization
+- [ ] Mermaid diagram generation for code architecture
+- [ ] Call graph visualization
+- [ ] File tree explorer with search
+
+### v0.3
+- [ ] Multi-turn conversation memory
+- [ ] Code editing suggestions with diffs
+- [ ] VSCode extension
+- [ ] CLI tool (`npx nexu chat`)
+
+### v0.4
+- [ ] GitHub App for automatic indexing
+- [ ] Team workspaces
+- [ ] Custom system prompts per repo
+- [ ] Webhook notifications
+
+### future ideas
+- Electron desktop app
+- Self-hosted Docker image
+- Plugin system for custom parsers
+- Code review integration
+
+## contributing
+
+Contributions are welcome! Please read our contributing guidelines (coming soon).
+
+```bash
+# development
+pnpm install
+pnpm dev
+
+# run tests
+pnpm test
+
+# lint
+pnpm lint
+```
 
 ## license
 
-MIT
+MIT - see [LICENSE](LICENSE) for details.
+
+## acknowledgments
+
+- [cAST paper](https://arxiv.org/abs/2506.15655) - AST-based chunking research
+- [tree-sitter](https://tree-sitter.github.io/tree-sitter/) - Incremental parsing
+- [shadcn/ui](https://ui.shadcn.com/) - UI components
+- [Vercel AI SDK](https://sdk.vercel.ai/) - Streaming utilities
