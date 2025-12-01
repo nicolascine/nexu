@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { Copy, Check, RotateCcw } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { CitationCard } from "./CitationCard";
-import { renderMarkdownContent, renderDiagramOnly, extractAllCode } from "@/lib/markdown";
 import { useToast } from "@/hooks/use-toast";
+import { extractAllCode, renderDiagramOnly, renderMarkdownContent } from "@/lib/markdown";
+import { cn } from "@/lib/utils";
+import { Check, Copy, RotateCcw } from "lucide-react";
+import { useState } from "react";
+import { CitationCard } from "./CitationCard";
 import { ResponseTabs } from "./ResponseTabs";
 import { ASTExplorer } from "./visualizations/ASTExplorer";
-import { DependencyGraph } from "./visualizations/DependencyGraph";
 import { CallGraph } from "./visualizations/CallGraph";
 import { ComplexityHeatmap } from "./visualizations/ComplexityHeatmap";
+import { DependencyGraph } from "./visualizations/DependencyGraph";
 import { GitBlameTimeline } from "./visualizations/GitBlameTimeline";
 import { TypeFlow } from "./visualizations/TypeFlow";
 
@@ -91,14 +91,14 @@ export function ChatMessage({
 
   return (
     <div className={cn(
-      "group w-full py-3 px-3 sm:py-4 sm:px-4 animate-fade-in",
+      "group px-3 sm:px-4 py-3 sm:py-4 w-full animate-fade-in",
       isUser ? "bg-surface" : "bg-background"
     )}>
-      <div className="max-w-3xl mx-auto">
+      <div className="mx-auto max-w-3xl">
         <div className="flex items-start gap-2 sm:gap-3">
           {/* Avatar */}
           <div className={cn(
-            "flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-medium transition-transform group-hover:scale-105",
+            "flex flex-shrink-0 justify-center items-center rounded-full w-6 sm:w-7 h-6 sm:h-7 font-medium text-[10px] sm:text-xs group-hover:scale-105 transition-transform",
             isUser 
               ? "bg-muted text-muted-foreground" 
               : "bg-foreground text-background"
@@ -106,15 +106,15 @@ export function ChatMessage({
             {isUser ? "Y" : "N"}
           </div>
 
-          <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex-1 space-y-1 min-w-0">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-foreground">
+                <span className="font-medium text-foreground text-sm">
                   {isUser ? "You" : "Nexu"}
                 </span>
                 {timestamp && (
-                  <span className="text-[10px] sm:text-xs text-muted-foreground">
+                  <span className="text-[10px] text-muted-foreground sm:text-xs">
                     {timestamp}
                   </span>
                 )}
@@ -126,6 +126,7 @@ export function ChatMessage({
                 "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
               )}>
                 <button
+                  type="button"
                   onClick={handleCopy}
                   className={cn(
                     "p-1 sm:p-1.5 rounded-md text-muted-foreground",
@@ -144,6 +145,7 @@ export function ChatMessage({
                 
                 {!isUser && onRetry && !isStreaming && (
                   <button
+                    type="button"
                     onClick={onRetry}
                     className={cn(
                       "p-1 sm:p-1.5 rounded-md text-muted-foreground",
@@ -162,9 +164,9 @@ export function ChatMessage({
             {/* Content */}
             {isUser ? (
               <div className={cn(
-                "prose prose-sm max-w-none",
-                "prose-p:text-foreground prose-p:leading-relaxed prose-p:my-2",
-                "text-[15px]"
+                "max-w-none prose prose-sm",
+                "prose-p:text-foreground prose-p:leading-7 prose-p:my-3",
+                "text-sm"
               )}>
                 {content}
               </div>
@@ -172,19 +174,19 @@ export function ChatMessage({
               <ResponseTabs content={content} citations={citations}>
                 {(activeTab) => (
                   <div className={cn(
-                    "prose prose-sm max-w-none",
-                    "prose-p:text-foreground prose-p:leading-relaxed prose-p:my-2",
-                    "prose-headings:text-foreground prose-headings:font-semibold",
+                    "max-w-none prose prose-sm",
+                    "prose-p:text-foreground/90 prose-p:leading-8 prose-p:my-4",
+                    "prose-headings:text-foreground prose-headings:font-semibold prose-headings:my-4",
                     "prose-strong:text-foreground prose-strong:font-semibold",
                     "prose-code:text-foreground prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm",
                     "prose-code:before:content-none prose-code:after:content-none",
-                    "prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-0",
-                    "prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5",
+                    "prose-pre:bg-transparent prose-pre:p-0 prose-pre:my-4",
+                    "prose-ul:my-6 prose-ol:my-6 prose-li:my-3",
                     "dark:prose-invert"
                   )}>
                     {renderContent(activeTab)}
                     {isStreaming && (
-                      <span className="inline-block w-0.5 h-4 ml-0.5 bg-foreground animate-pulse" />
+                      <span className="inline-block bg-foreground ml-0.5 w-0.5 h-4 animate-pulse" />
                     )}
                   </div>
                 )}
