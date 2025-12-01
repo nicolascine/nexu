@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef } from "react";
 import { Citation } from "@/components/ChatMessage";
 import { API_URL } from "@/lib/api";
+import { useCallback, useRef, useState } from "react";
 
 export interface UIMessage {
   id: string;
@@ -12,6 +12,8 @@ export interface UIMessage {
 
 export interface UseChatConfig {
   repositoryId?: string;
+  githubUrl?: string;
+  defaultBranch?: string;
   api?: string;
   onFinish?: (message: UIMessage) => void;
   onError?: (error: Error) => void;
@@ -34,7 +36,7 @@ function generateId(): string {
 }
 
 export function useNexuChat(config: UseChatConfig = {}) {
-  const { repositoryId, api, onFinish, onError, initialMessages = [] } = config;
+  const { repositoryId, githubUrl, defaultBranch = "main", api, onFinish, onError, initialMessages = [] } = config;
 
   const [messages, setMessages] = useState<ChatMessageWithCitations[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -143,6 +145,7 @@ export function useNexuChat(config: UseChatConfig = {}) {
                 });
               } catch (e) {
                 // Ignore parse errors
+                console.error(e);
               }
             } else if (line.startsWith("2:")) {
               // Parse chunks data and convert to citations
@@ -150,13 +153,20 @@ export function useNexuChat(config: UseChatConfig = {}) {
                 const dataArray = JSON.parse(line.slice(2));
                 const chunksData = dataArray.find((d: any) => d.type === "chunks");
                 if (chunksData?.data) {
-                  citations = chunksData.data.map((chunk: any, index: number) => ({
-                    id: `citation-${index}`,
-                    file: chunk.filepath,
-                    lines: `${chunk.startLine}-${chunk.endLine}`,
-                    code: chunk.content || "",
-                    url: `https://github.com/${chunk.filepath}#L${chunk.startLine}-L${chunk.endLine}`,
-                  }));
+                  citations = chunksData.data.map((chunk: any, index: number) => {
+                    // const baseUrl = githubUrl || `https://github.com/${chunk.filepath.split('/')[0]}`; 
+                    const url = githubUrl 
+                      ? `${githubUrl}/blob/${defaultBranch}/${chunk.filepath}#L${chunk.startLine}-L${chunk.endLine}`
+                      : `https://github.com/${chunk.filepath}#L${chunk.startLine}-L${chunk.endLine}`;
+                    
+                    return {
+                      id: `citation-${index}`,
+                      file: chunk.filepath,
+                      lines: `${chunk.startLine}-${chunk.endLine}`,
+                      code: chunk.content || "",
+                      url,
+                    };
+                  });
                   // Update message with citations immediately
                   setMessages((prev) => {
                     const updated = [...prev];
@@ -172,6 +182,7 @@ export function useNexuChat(config: UseChatConfig = {}) {
                 }
               } catch (e) {
                 // Ignore parse errors for data chunks
+                console.error(e);
               }
             }
           }
@@ -206,7 +217,7 @@ export function useNexuChat(config: UseChatConfig = {}) {
         abortControllerRef.current = null;
       }
     },
-    [endpoint, messages, repositoryId, isLoading, onFinish, onError]
+    [endpoint, messages, repositoryId, isLoading, onFinish, onError, githubUrl, defaultBranch]
   );
 
   const handleInputChange = useCallback(
