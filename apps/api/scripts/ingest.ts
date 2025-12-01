@@ -165,6 +165,45 @@ async function saveToJson(
   console.log(`  Meta: ${META_FILE}`);
 }
 
+async function testSupabaseConnection(): Promise<void> {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('DATABASE_URL not set. Use --prod with valid .env.local');
+  }
+
+  console.log('→ Testing Supabase connection...');
+  const { Pool } = await import('pg');
+  const pool = new Pool({ connectionString, connectionTimeoutMillis: 10000 });
+
+  try {
+    const client = await pool.connect();
+    const result = await client.query('SELECT 1 as ok');
+    if (result.rows[0]?.ok !== 1) {
+      throw new Error('Unexpected response from database');
+    }
+
+    // verify tables exist
+    const tablesResult = await client.query(`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name IN ('chunks', 'repositories')
+    `);
+    if (tablesResult.rows.length < 2) {
+      throw new Error('Required tables (chunks, repositories) not found. Run migrations first.');
+    }
+
+    client.release();
+    console.log('  ✓ Connected to Supabase');
+    console.log('  ✓ Required tables exist');
+  } catch (error: any) {
+    if (error.code === 'ENOTFOUND' || error.code === 'EHOSTUNREACH') {
+      throw new Error(`Cannot reach Supabase: ${error.message}. Check your network connection.`);
+    }
+    throw error;
+  } finally {
+    await pool.end();
+  }
+}
+
 async function saveToPgVector(
   entries: Array<{ id: string; embedding: number[]; chunk: CodeChunk; repositoryId: string }>,
   graph: DependencyGraph,
@@ -174,7 +213,7 @@ async function saveToPgVector(
   if (!connectionString) throw new Error('DATABASE_URL not set. Use --prod with valid .env');
 
   const { Pool } = await import('pg');
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({ connectionString, connectionTimeoutMillis: 30000 });
 
   try {
     const client = await pool.connect();
@@ -287,6 +326,12 @@ async function main() {
     console.log('  --verbose           Show detailed progress');
     console.log('  --clean             Remove cloned repo after indexing');
     process.exit(1);
+  }
+
+  // PREFLIGHT CHECK: Test Supabase connection BEFORE doing any expensive work
+  if (options.prod) {
+    await testSupabaseConnection();
+    console.log('');
   }
 
   // determine target path and repository info
