@@ -95,6 +95,8 @@ export async function POST(request: NextRequest) {
               endLine: c.endLine,
               nodeType: c.nodeType,
               name: c.name,
+              content: c.content, // Include code content for citations
+              language: c.language,
               score: c.score,
             })),
           };

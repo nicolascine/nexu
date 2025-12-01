@@ -110,6 +110,7 @@ export function useNexuChat(config: UseChatConfig = {}) {
         }
 
         let fullContent = "";
+        let citations: Citation[] = [];
 
         while (true) {
           const { done, value } = await reader.read();
@@ -121,7 +122,7 @@ export function useNexuChat(config: UseChatConfig = {}) {
           for (const line of lines) {
             // Parse Vercel AI SDK streaming format
             // 0:"text" - text content
-            // 2:[data] - data/chunks
+            // 2:[data] - data/chunks (contains code chunks from retrieval)
             // d:{...} - done signal
             if (line.startsWith("0:")) {
               try {
@@ -135,6 +136,7 @@ export function useNexuChat(config: UseChatConfig = {}) {
                       ...updated[lastIdx],
                       content: fullContent,
                       parts: [{ type: "text", text: fullContent }],
+                      citations, // Include citations
                     };
                   }
                   return updated;
@@ -142,11 +144,40 @@ export function useNexuChat(config: UseChatConfig = {}) {
               } catch (e) {
                 // Ignore parse errors
               }
+            } else if (line.startsWith("2:")) {
+              // Parse chunks data and convert to citations
+              try {
+                const dataArray = JSON.parse(line.slice(2));
+                const chunksData = dataArray.find((d: any) => d.type === "chunks");
+                if (chunksData?.data) {
+                  citations = chunksData.data.map((chunk: any, index: number) => ({
+                    id: `citation-${index}`,
+                    file: chunk.filepath,
+                    lines: `${chunk.startLine}-${chunk.endLine}`,
+                    code: chunk.content || "",
+                    url: `https://github.com/${chunk.filepath}#L${chunk.startLine}-L${chunk.endLine}`,
+                  }));
+                  // Update message with citations immediately
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastIdx = updated.length - 1;
+                    if (lastIdx >= 0 && updated[lastIdx].role === "assistant") {
+                      updated[lastIdx] = {
+                        ...updated[lastIdx],
+                        citations,
+                      };
+                    }
+                    return updated;
+                  });
+                }
+              } catch (e) {
+                // Ignore parse errors for data chunks
+              }
             }
           }
         }
 
-        // Update final message
+        // Update final message with citations
         setMessages((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
@@ -155,6 +186,7 @@ export function useNexuChat(config: UseChatConfig = {}) {
               ...updated[lastIdx],
               content: fullContent,
               parts: [{ type: "text", text: fullContent }],
+              citations,
             };
             onFinish?.(finalMessage);
             updated[lastIdx] = finalMessage;
