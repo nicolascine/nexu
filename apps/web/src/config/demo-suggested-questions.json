@@ -1,26 +1,32 @@
 {
   "github:anthropics/anthropic-sdk-python": [
-    "How does the streaming API work?",
-    "Where is the retry logic implemented?",
-    "How are messages formatted for the API?",
-    "Explain the async client architecture"
+    "How is the Anthropic client initialized?",
+    "How does the SDK handle streaming responses?",
+    "What parameters does messages.create accept?",
+    "How are API errors handled?"
   ],
   "github:supabase/supabase": [
-    "How does realtime subscriptions work?",
-    "Where is auth middleware implemented?",
-    "How are database migrations handled?",
-    "Explain the edge functions architecture"
+    "How is the createClient function implemented?",
+    "How does the realtime channel subscription work?",
+    "How are RLS policies applied in queries?",
+    "How does auth session management work?"
   ],
   "github:calcom/cal.com": [
-    "Where is availability validation?",
-    "How does payment processing work?",
-    "What middleware is used for auth?",
-    "Explain the booking creation flow"
+    "How is getAvailableSlots implemented?",
+    "How does the booking creation flow work?",
+    "How is the event type configuration structured?",
+    "How does calendar integration sync work?"
+  ],
+  "github:calcom/cal": [
+    "How is getAvailableSlots implemented?",
+    "How does the booking creation flow work?",
+    "How is the event type configuration structured?",
+    "How does calendar integration sync work?"
   ],
   "default": [
-    "How is the main entry point structured?",
-    "Where is authentication handled?",
-    "What are the core data models?",
-    "Explain the API architecture"
+    "What is the main entry point of this codebase?",
+    "How is the project structured?",
+    "What are the core modules and their responsibilities?",
+    "How is configuration managed?"
   ]
 }
