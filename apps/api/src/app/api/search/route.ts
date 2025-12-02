@@ -6,6 +6,12 @@ import { search, initIndexAsync } from '@/lib/nexu';
 
 export const runtime = 'nodejs';
 
+const VALID_RERANKERS = ['bge', 'llm', 'none'] as const;
+const MAX_QUERY_LENGTH = 2000;
+const MAX_TOP_K = 50;
+const MAX_HOPS = 5;
+const MAX_EXPANDED_CHUNKS = 100;
+
 interface RequestBody {
   query: string;
   options?: {
@@ -15,6 +21,32 @@ interface RequestBody {
     maxHops?: number;
     maxExpandedChunks?: number;
   };
+}
+
+function validateOptions(options: RequestBody['options']): string | null {
+  if (!options) return null;
+
+  if (options.topK !== undefined) {
+    if (typeof options.topK !== 'number' || options.topK < 1 || options.topK > MAX_TOP_K) {
+      return `topK must be a number between 1 and ${MAX_TOP_K}`;
+    }
+  }
+  if (options.maxHops !== undefined) {
+    if (typeof options.maxHops !== 'number' || options.maxHops < 0 || options.maxHops > MAX_HOPS) {
+      return `maxHops must be a number between 0 and ${MAX_HOPS}`;
+    }
+  }
+  if (options.maxExpandedChunks !== undefined) {
+    if (typeof options.maxExpandedChunks !== 'number' || options.maxExpandedChunks < 1 || options.maxExpandedChunks > MAX_EXPANDED_CHUNKS) {
+      return `maxExpandedChunks must be a number between 1 and ${MAX_EXPANDED_CHUNKS}`;
+    }
+  }
+  if (options.reranker !== undefined) {
+    if (!VALID_RERANKERS.includes(options.reranker)) {
+      return `reranker must be one of: ${VALID_RERANKERS.join(', ')}`;
+    }
+  }
+  return null;
 }
 
 export async function POST(request: NextRequest) {
@@ -27,6 +59,18 @@ export async function POST(request: NextRequest) {
         { error: 'Query string is required' },
         { status: 400 }
       );
+    }
+
+    if (query.length > MAX_QUERY_LENGTH) {
+      return NextResponse.json(
+        { error: `Query must be at most ${MAX_QUERY_LENGTH} characters` },
+        { status: 400 }
+      );
+    }
+
+    const optionsError = validateOptions(options);
+    if (optionsError) {
+      return NextResponse.json({ error: optionsError }, { status: 400 });
     }
 
     // check index is loaded (supports both JSON and pgvector)

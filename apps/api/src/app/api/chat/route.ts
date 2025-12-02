@@ -2,12 +2,17 @@
 // Compatible with Vercel AI SDK useChat hook
 
 import { NextRequest } from 'next/server';
-import { chatStream, search, initIndexAsync, type ChatRequest } from '@/lib/nexu';
+import { search, initIndexAsync } from '@/lib/nexu';
 import type { CodeChunk } from '@/lib/ast';
 import { generateStream } from '@/lib/llm';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
+
+const VALID_RERANKERS = ['bge', 'llm', 'none'] as const;
+const MAX_QUERY_LENGTH = 2000;
+const MAX_MESSAGES = 50;
+const MAX_TOP_K = 50;
 
 interface RequestBody {
   messages: Array<{
@@ -22,17 +27,52 @@ interface RequestBody {
   };
 }
 
+function validateRequest(body: RequestBody): string | null {
+  const { messages, options } = body;
+
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return 'Messages array is required and must not be empty';
+  }
+  if (messages.length > MAX_MESSAGES) {
+    return `Maximum ${MAX_MESSAGES} messages allowed`;
+  }
+  for (const msg of messages) {
+    if (!msg.role || !['user', 'assistant'].includes(msg.role)) {
+      return 'Each message must have a valid role (user or assistant)';
+    }
+    if (typeof msg.content !== 'string') {
+      return 'Each message must have a string content';
+    }
+    if (msg.content.length > MAX_QUERY_LENGTH) {
+      return `Message content must be at most ${MAX_QUERY_LENGTH} characters`;
+    }
+  }
+  if (options?.topK !== undefined) {
+    if (typeof options.topK !== 'number' || options.topK < 1 || options.topK > MAX_TOP_K) {
+      return `topK must be a number between 1 and ${MAX_TOP_K}`;
+    }
+  }
+  if (options?.reranker !== undefined) {
+    if (!VALID_RERANKERS.includes(options.reranker)) {
+      return `reranker must be one of: ${VALID_RERANKERS.join(', ')}`;
+    }
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: RequestBody = await request.json();
-    const { messages, options } = body;
 
-    if (!messages || messages.length === 0) {
+    const validationError = validateRequest(body);
+    if (validationError) {
       return new Response(
-        JSON.stringify({ error: 'No messages provided' }),
+        JSON.stringify({ error: validationError }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
+
+    const { messages, options } = body;
 
     // get the last user message as the query
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user');
