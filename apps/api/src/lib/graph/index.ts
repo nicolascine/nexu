@@ -4,6 +4,7 @@ import { CodeChunk } from '../ast';
 import { resolve, dirname } from 'path';
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { logger } from '../logger';
 
 export interface Import {
   symbol: string;
@@ -52,14 +53,14 @@ function detectWorkspacePackages(projectRoot: string): Map<string, string> {
                 if (pkgJson.name) {
                   packages.set(pkgJson.name, join(fullPath, entry.name));
                 }
-              } catch {
-                // couldn't read package.json, skip
+              } catch (error) {
+                logger.debug('Failed to read package.json', { path: pkgJsonPath, error: String(error) });
               }
             }
           }
         }
-      } catch {
-        // couldn't read directory, skip
+      } catch (error) {
+        logger.debug('Failed to read workspace directory', { path: fullPath, error: String(error) });
       }
     }
   }
