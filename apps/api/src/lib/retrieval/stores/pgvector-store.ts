@@ -139,7 +139,7 @@ export class PgVectorStore implements IVectorStore {
   async search(queryEmbedding: number[], options: SearchOptions = {}): Promise<SearchResult[]> {
     this.ensureInitialized();
 
-    const { topK = 10, minScore = 0 } = options;
+    const { topK = 10, minScore = 0, repositoryId } = options;
 
     if (queryEmbedding.length !== this.dimension) {
       throw new Error(
@@ -149,17 +149,33 @@ export class PgVectorStore implements IVectorStore {
 
     const embeddingStr = `[${queryEmbedding.join(',')}]`;
 
-    const result = await this.pool!.query(
-      `SELECT
+    // build query with optional repository filter
+    let query: string;
+    let params: (string | number)[];
+
+    if (repositoryId) {
+      query = `SELECT
+        id, filepath, start_line, end_line, node_type, name, language,
+        content, imports, exports, types,
+        1 - (embedding <=> $1::vector) AS similarity
+       FROM chunks
+       WHERE repository_id = $2 AND 1 - (embedding <=> $1::vector) > $3
+       ORDER BY embedding <=> $1::vector
+       LIMIT $4`;
+      params = [embeddingStr, repositoryId, minScore, topK];
+    } else {
+      query = `SELECT
         id, filepath, start_line, end_line, node_type, name, language,
         content, imports, exports, types,
         1 - (embedding <=> $1::vector) AS similarity
        FROM chunks
        WHERE 1 - (embedding <=> $1::vector) > $2
        ORDER BY embedding <=> $1::vector
-       LIMIT $3`,
-      [embeddingStr, minScore, topK]
-    );
+       LIMIT $3`;
+      params = [embeddingStr, minScore, topK];
+    }
+
+    const result = await this.pool!.query(query, params);
 
     return result.rows.map(row => ({
       entry: {

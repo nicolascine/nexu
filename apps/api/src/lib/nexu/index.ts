@@ -88,6 +88,7 @@ export interface ChatResponse {
 
 export interface SearchRequest {
   query: string;
+  repositoryId?: string;
   options?: RetrievalOptions;
 }
 
@@ -317,15 +318,15 @@ export async function getStatus(): Promise<NexuStatus> {
 async function searchPgVector(
   store: IVectorStore,
   query: string,
-  options: { topK?: number; minScore?: number } = {}
+  options: { topK?: number; minScore?: number; repositoryId?: string } = {}
 ): Promise<SearchResponse> {
-  const { topK = 10, minScore = 0 } = options;
+  const { topK = 10, minScore = 0, repositoryId } = options;
 
   // embed query
   const [queryEmbedding] = await embed(query);
 
   // search pgvector
-  const results = await store.search(queryEmbedding, { topK, minScore });
+  const results = await store.search(queryEmbedding, { topK, minScore, repositoryId });
 
   return {
     chunks: results.map((r) => ({
@@ -351,6 +352,7 @@ export async function search(request: SearchRequest): Promise<SearchResponse> {
     return searchPgVector(pgStore, request.query, {
       topK: request.options?.topK || 10,
       minScore: request.options?.minScore,
+      repositoryId: request.repositoryId,
     });
   }
 

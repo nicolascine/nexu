@@ -18,6 +18,7 @@ interface RequestBody {
     topK?: number;
     reranker?: 'bge' | 'llm' | 'none';
     expandGraph?: boolean;
+    repository?: string;
   };
 }
 
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
     // retrieve relevant chunks
     const searchResult = await search({
       query,
+      repositoryId: options?.repository,
       options: {
         topK: options?.topK || 10,
         reranker: options?.reranker || 'llm',

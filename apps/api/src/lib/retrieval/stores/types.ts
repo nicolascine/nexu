@@ -24,6 +24,7 @@ export interface StoreStats {
 export interface SearchOptions {
   topK?: number;
   minScore?: number;
+  repositoryId?: string;
 }
 
 // Abstract interface for vector stores
