@@ -45,7 +45,10 @@ const DEFAULT_OPTIONS: Required<RetrievalOptions> = {
   rerankTopK: 5,
 };
 
-// stage 1: vector search
+/**
+ * Stage 1: Vector similarity search.
+ * Embeds the query and finds semantically similar code chunks.
+ */
 export async function vectorSearch(
   store: VectorStore,
   query: string,
@@ -67,7 +70,10 @@ export async function vectorSearch(
   };
 }
 
-// stage 2: graph expansion
+/**
+ * Stage 2: Graph-based context expansion.
+ * Adds related chunks by following import/export relationships.
+ */
 export function graphExpand(
   vectorResult: RetrievalResult,
   graph: DependencyGraph,
@@ -291,7 +297,10 @@ Your response (JSON array only):`;
   }
 }
 
-// unified rerank dispatcher
+/**
+ * Stage 3: Reranking dispatcher.
+ * Reorders chunks by relevance using BGE (fast) or LLM (accurate).
+ */
 export async function rerank(
   query: string,
   result: RetrievalResult,
@@ -310,7 +319,22 @@ export async function rerank(
   return llmRerank(query, result, options);
 }
 
-// full retrieval pipeline
+/**
+ * Full retrieval pipeline: vector search → graph expansion → reranking.
+ * This is the main entry point for finding relevant code chunks.
+ *
+ * @param store - Vector store containing embedded chunks
+ * @param graph - Dependency graph for context expansion
+ * @param query - Natural language query
+ * @param options - Pipeline configuration options
+ * @returns Ranked code chunks with relevance scores
+ *
+ * @example
+ * ```ts
+ * const result = await retrieve(store, graph, 'How does auth work?');
+ * // result.chunks contains the most relevant code snippets
+ * ```
+ */
 export async function retrieve(
   store: VectorStore,
   graph: DependencyGraph,

@@ -250,7 +250,20 @@ function extractExportsFromContent(content: string): string[] {
   return exports;
 }
 
-// build graph from files
+/**
+ * Builds a dependency graph from source files.
+ * Analyzes imports/exports to create edges between files.
+ *
+ * @param files - Array of files with filepath and content
+ * @param projectRoot - Root directory for resolving relative imports
+ * @returns Graph with nodes (files) and edges (dependencies)
+ *
+ * @example
+ * ```ts
+ * const graph = buildGraph(files, '/project');
+ * // graph.edges.get('src/auth.ts') -> Set(['src/user.ts', 'src/db.ts'])
+ * ```
+ */
 export function buildGraph(
   files: Array<{ filepath: string; content: string }>,
   projectRoot: string
@@ -323,7 +336,18 @@ export function getDependents(graph: DependencyGraph, filepath: string): string[
   return Array.from(graph.reverseEdges.get(filepath) || []);
 }
 
-// expand context by following imports/dependents up to N hops
+/**
+ * Expands context by traversing the dependency graph using BFS.
+ * Finds related files by following imports and dependents up to N hops.
+ *
+ * @param graph - The dependency graph to traverse
+ * @param startFiles - Initial files to expand from
+ * @param options.maxHops - Maximum traversal depth (default: 2)
+ * @param options.includeImports - Follow files this file imports (default: true)
+ * @param options.includeDependents - Follow files that import this file (default: true)
+ * @param options.maxFiles - Maximum files to return (default: 20)
+ * @returns Array of related file paths
+ */
 export function expandContext(
   graph: DependencyGraph,
   startFiles: string[],

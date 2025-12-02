@@ -390,7 +390,20 @@ function shouldSkipNode(node: Parser.SyntaxNode, language: Language): boolean {
   return false;
 }
 
-// main parsing function
+/**
+ * Parses a source file into semantic code chunks using tree-sitter.
+ * Extracts functions, classes, interfaces, types, and other declarations.
+ *
+ * @param filepath - Path to the file (used for language detection and chunk IDs)
+ * @param content - Source code content to parse
+ * @returns Array of code chunks with metadata (imports, exports, types)
+ *
+ * @example
+ * ```ts
+ * const chunks = parseFile('src/auth.ts', 'export function login() { ... }');
+ * // Returns: [{ nodeType: 'function', name: 'login', ... }]
+ * ```
+ */
 export function parseFile(filepath: string, content: string): CodeChunk[] {
   const language = detectLanguage(filepath);
   if (!language) {
@@ -526,7 +539,13 @@ export function parseFile(filepath: string, content: string): CodeChunk[] {
   return chunks;
 }
 
-// parse multiple files
+/**
+ * Parses multiple source files into code chunks.
+ * Convenience wrapper around parseFile for batch processing.
+ *
+ * @param files - Array of file objects with filepath and content
+ * @returns Flattened array of all code chunks from all files
+ */
 export function parseFiles(files: Array<{ filepath: string; content: string }>): CodeChunk[] {
   const allChunks: CodeChunk[] = [];
 
@@ -538,7 +557,7 @@ export function parseFiles(files: Array<{ filepath: string; content: string }>):
   return allChunks;
 }
 
-// get supported file extensions
+/** Returns all file extensions supported by the parser (e.g., ['.ts', '.tsx', '.py']) */
 export function getSupportedExtensions(): string[] {
   const extensions: string[] = [];
   for (const config of Object.values(LANGUAGE_CONFIGS)) {
@@ -547,7 +566,7 @@ export function getSupportedExtensions(): string[] {
   return extensions;
 }
 
-// get supported languages
+/** Returns all supported programming languages */
 export function getSupportedLanguages(): Language[] {
   return Object.keys(LANGUAGE_CONFIGS) as Language[];
 }

@@ -132,7 +132,14 @@ ${query}
 </query>`;
 }
 
-// main generation function
+/**
+ * Generates a response using the configured LLM provider.
+ * Builds context from code chunks and returns response with citations.
+ *
+ * @param options.query - The user's question
+ * @param options.chunks - Retrieved code chunks to use as context
+ * @returns Generated response with citations and token usage
+ */
 export async function generate(options: GenerateOptions): Promise<GenerateResult> {
   const provider = createLLMProvider();
   const context = buildContext(options.query, options.chunks);
@@ -160,7 +167,10 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
   };
 }
 
-// streaming generation
+/**
+ * Streaming version of generate. Yields text chunks as they arrive.
+ * Use this for real-time chat interfaces.
+ */
 export async function* generateStream(
   options: GenerateOptions
 ): AsyncIterable<string> {
@@ -177,7 +187,13 @@ export async function* generateStream(
   yield* provider.chatStream(chatOptions);
 }
 
-// embedding function
+/**
+ * Generates embeddings for text using the configured embedding provider.
+ * Supports both single strings and arrays for batch processing.
+ *
+ * @param text - Single string or array of strings to embed
+ * @returns Array of embedding vectors (1536 dimensions for text-embedding-3-small)
+ */
 export async function embed(text: string | string[]): Promise<number[][]> {
   const provider = createEmbeddingProvider();
   const result = await provider.embed({ input: text });
