@@ -1,7 +1,9 @@
 // Dependency graph construction for context expansion
 
 import { CodeChunk } from '../ast';
-import { resolve, dirname, relative } from 'path';
+import { resolve, dirname } from 'path';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 export interface Import {
   symbol: string;
@@ -31,26 +33,24 @@ let workspacePackages: Map<string, string> | null = null;
 // detect workspace packages from project structure
 function detectWorkspacePackages(projectRoot: string): Map<string, string> {
   const packages = new Map<string, string>();
-  const fs = require('fs');
-  const path = require('path');
 
   // common workspace directories
   const workspaceDirs = ['packages', 'apps', 'libs', 'modules'];
 
   for (const dir of workspaceDirs) {
-    const fullPath = path.join(projectRoot, dir);
-    if (fs.existsSync(fullPath)) {
+    const fullPath = join(projectRoot, dir);
+    if (existsSync(fullPath)) {
       try {
-        const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+        const entries = readdirSync(fullPath, { withFileTypes: true });
         for (const entry of entries) {
           if (entry.isDirectory()) {
             // check for package.json to get package name
-            const pkgJsonPath = path.join(fullPath, entry.name, 'package.json');
-            if (fs.existsSync(pkgJsonPath)) {
+            const pkgJsonPath = join(fullPath, entry.name, 'package.json');
+            if (existsSync(pkgJsonPath)) {
               try {
-                const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+                const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
                 if (pkgJson.name) {
-                  packages.set(pkgJson.name, path.join(fullPath, entry.name));
+                  packages.set(pkgJson.name, join(fullPath, entry.name));
                 }
               } catch {
                 // couldn't read package.json, skip
