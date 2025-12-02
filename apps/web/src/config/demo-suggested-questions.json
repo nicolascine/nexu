@@ -1,9 +1,9 @@
 {
   "github:anthropics/anthropic-sdk-python": [
-    "How is the Anthropic client initialized?",
-    "How does the SDK handle streaming responses?",
-    "What parameters does messages.create accept?",
-    "How are API errors handled?"
+    "What classes are defined in _client.py?",
+    "How does the Messages class work?",
+    "What exceptions does the SDK define?",
+    "How is the API base URL configured?"
   ],
   "github:supabase/supabase": [
     "How is the createClient function implemented?",
