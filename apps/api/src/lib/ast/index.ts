@@ -282,7 +282,11 @@ function mapNodeType(nodeType: string, language: Language): CodeChunk['nodeType'
   return LANGUAGE_CONFIGS[language].typeMap[nodeType] || 'other';
 }
 
-// extract imports from file (language-aware)
+/**
+ * Extract import paths from a parsed AST (language-aware).
+ * Returns only the module paths, not the imported symbols.
+ * For detailed import info (symbols, line numbers), see lib/graph regex extraction.
+ */
 function extractImports(tree: Parser.Tree, language: Language): string[] {
   const config = LANGUAGE_CONFIGS[language];
   const imports: string[] = [];

@@ -132,7 +132,15 @@ function tryResolveFile(basePath: string, projectRoot: string): string | null {
   return basePath + '.ts';
 }
 
-// extract imports from code content using regex (fast, for initial graph building)
+/**
+ * Extract imports from code content using regex.
+ * This is intentionally separate from AST extraction because:
+ * - Faster for initial graph building (no tree-sitter overhead)
+ * - Extracts additional metadata (symbols, line numbers, type imports)
+ * - Works without loading language grammars
+ *
+ * Note: For chunk metadata, we use tree-sitter in lib/ast which is more accurate.
+ */
 function extractImportsFromContent(content: string): Array<{ symbols: string[]; from: string; isType: boolean; line: number }> {
   const imports: Array<{ symbols: string[]; from: string; isType: boolean; line: number }> = [];
   const lines = content.split('\n');
