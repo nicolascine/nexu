@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { search, initIndexAsync } from '@/lib/nexu';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       count: result.chunks.length,
     });
   } catch (error) {
-    console.error('Search API error:', error);
+    logger.error('Search API error', {}, error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json(
       { error: errorMessage },

@@ -1,6 +1,7 @@
 // Repository management for multi-repo support
 
 import { getStoreType } from '../retrieval/stores'
+import { logger } from '../logger'
 
 export interface Repository {
   id: string           // 'github:owner/repo'
@@ -231,7 +232,7 @@ export async function fetchGitHubMetadata(owner: string, repo: string): Promise<
     })
 
     if (!res.ok) {
-      console.warn(`Failed to fetch GitHub metadata for ${owner}/${repo}: ${res.status}`)
+      logger.warn('Failed to fetch GitHub metadata', { owner, repo, status: res.status })
       return { description: null, stars: 0, language: null, defaultBranch: 'main' }
     }
 
@@ -243,7 +244,7 @@ export async function fetchGitHubMetadata(owner: string, repo: string): Promise<
       defaultBranch: data.default_branch || 'main',
     }
   } catch (error) {
-    console.warn(`Error fetching GitHub metadata:`, error)
+    logger.warn('Error fetching GitHub metadata', { owner, repo }, error)
     return { description: null, stars: 0, language: null, defaultBranch: 'main' }
   }
 }

@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server';
 import { search, initIndexAsync } from '@/lib/nexu';
 import type { CodeChunk } from '@/lib/ast';
 import { generateStream } from '@/lib/llm';
+import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -156,7 +157,7 @@ export async function POST(request: NextRequest) {
           controller.enqueue(encoder.encode(`d:{"finishReason":"stop"}\n`));
           controller.close();
         } catch (error) {
-          console.error('Streaming error:', error);
+          logger.error('Streaming error', { query }, error);
           controller.enqueue(
             encoder.encode(`3:${JSON.stringify({ error: 'Generation failed' })}\n`)
           );
@@ -172,7 +173,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Chat API error:', error);
+    logger.error('Chat API error', {}, error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return new Response(
       JSON.stringify({ error: errorMessage }),

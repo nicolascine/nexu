@@ -6,6 +6,7 @@ import type { CodeChunk } from '../ast';
 import type { DependencyGraph } from '../graph';
 import { getExpandedChunks } from '../graph';
 import { embed, createLLMProvider } from '../llm';
+import { logger } from '../logger';
 import type { VectorStore } from './vector-store';
 import { searchStore } from './vector-store';
 
@@ -150,12 +151,12 @@ async function bgeRerank(
     };
 
     const timeout = setTimeout(() => {
-      console.warn('BGE rerank timed out after', BGE_RERANK_TIMEOUT_MS, 'ms');
+      logger.warn('BGE rerank timed out', { timeoutMs: BGE_RERANK_TIMEOUT_MS });
       settle(fallbackResult);
     }, BGE_RERANK_TIMEOUT_MS);
 
     proc.on('error', (err) => {
-      console.warn('BGE rerank process error:', err.message);
+      logger.warn('BGE rerank process error', { scriptPath }, err);
       settle(fallbackResult);
     });
 
@@ -166,7 +167,7 @@ async function bgeRerank(
       if (settled) return;
 
       if (code !== 0 || !stdout.trim()) {
-        console.warn('BGE rerank failed with code', code, ':', stderr);
+        logger.warn('BGE rerank failed', { exitCode: code, stderr: stderr.slice(0, 500) });
         settle(fallbackResult);
         return;
       }
@@ -187,7 +188,7 @@ async function bgeRerank(
           stage: 'reranked',
         });
       } catch (err) {
-        console.warn('Failed to parse BGE scores:', err);
+        logger.warn('Failed to parse BGE scores', { stdout: stdout.slice(0, 200) }, err);
         settle(fallbackResult);
       }
     });
@@ -253,7 +254,9 @@ Your response (JSON array only):`;
     // parse response
     const match = response.content.match(/\[[\d,\s]+\]/);
     if (!match) {
-      console.warn('Failed to parse reranking response, falling back to vector scores');
+      logger.warn('Failed to parse LLM reranking response', {
+        response: response.content.slice(0, 200),
+      });
       return {
         chunks: result.chunks.slice(0, rerankTopK),
         scores: result.scores.slice(0, rerankTopK),
@@ -278,7 +281,7 @@ Your response (JSON array only):`;
       stage: 'reranked',
     };
   } catch (error) {
-    console.warn('Reranking failed, falling back to vector scores:', error);
+    logger.warn('LLM reranking failed', { chunksCount: result.chunks.length }, error);
     return {
       chunks: result.chunks.slice(0, rerankTopK),
       scores: result.scores.slice(0, rerankTopK),
