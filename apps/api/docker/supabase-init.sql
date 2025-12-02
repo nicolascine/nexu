@@ -1,5 +1,5 @@
 -- Nexu Schema for Supabase with pgvector
--- Run this in the SQL Editor: https://supabase.com/dashboard/project/mruwjuutxfspflolmeel/sql
+-- Run this in the SQL Editor: https://supabase.com/dashboard/project/<YOUR_PROJECT_ID>/sql
 
 -- Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
