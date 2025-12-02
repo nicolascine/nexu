@@ -101,6 +101,8 @@ export function graphExpand(
   };
 }
 
+const BGE_RERANK_TIMEOUT_MS = 30000; // 30 seconds max for reranking
+
 // stage 3a: BGE reranking (fast, dedicated reranker)
 async function bgeRerank(
   query: string,
@@ -118,25 +120,54 @@ async function bgeRerank(
     chunk => `${chunk.filepath}:${chunk.startLine}-${chunk.endLine} (${chunk.nodeType}: ${chunk.name})\n${chunk.content}`
   );
 
+  const fallbackResult: RetrievalResult = {
+    chunks: result.chunks.slice(0, rerankTopK),
+    scores: result.scores.slice(0, rerankTopK),
+    expandedFrom: result.expandedFrom,
+    stage: 'reranked',
+  };
+
   return new Promise((resolve) => {
     const scriptPath = join(__dirname, '../../../scripts/rerank.py');
     const proc = spawn('python3', [scriptPath]);
 
     let stdout = '';
     let stderr = '';
+    let settled = false;
+
+    const cleanup = () => {
+      if (!proc.killed) {
+        proc.kill('SIGTERM');
+      }
+    };
+
+    const settle = (res: RetrievalResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      cleanup();
+      resolve(res);
+    };
+
+    const timeout = setTimeout(() => {
+      console.warn('BGE rerank timed out after', BGE_RERANK_TIMEOUT_MS, 'ms');
+      settle(fallbackResult);
+    }, BGE_RERANK_TIMEOUT_MS);
+
+    proc.on('error', (err) => {
+      console.warn('BGE rerank process error:', err.message);
+      settle(fallbackResult);
+    });
 
     proc.stdout.on('data', (data) => { stdout += data.toString(); });
     proc.stderr.on('data', (data) => { stderr += data.toString(); });
 
     proc.on('close', (code) => {
+      if (settled) return;
+
       if (code !== 0 || !stdout.trim()) {
-        console.warn('BGE rerank failed, falling back to vector scores:', stderr);
-        resolve({
-          chunks: result.chunks.slice(0, rerankTopK),
-          scores: result.scores.slice(0, rerankTopK),
-          expandedFrom: result.expandedFrom,
-          stage: 'reranked',
-        });
+        console.warn('BGE rerank failed with code', code, ':', stderr);
+        settle(fallbackResult);
         return;
       }
 
@@ -149,7 +180,7 @@ async function bgeRerank(
           .sort((a, b) => b.score - a.score)
           .slice(0, rerankTopK);
 
-        resolve({
+        settle({
           chunks: ranked.map(r => r.chunk),
           scores: ranked.map(r => r.score),
           expandedFrom: result.expandedFrom,
@@ -157,12 +188,7 @@ async function bgeRerank(
         });
       } catch (err) {
         console.warn('Failed to parse BGE scores:', err);
-        resolve({
-          chunks: result.chunks.slice(0, rerankTopK),
-          scores: result.scores.slice(0, rerankTopK),
-          expandedFrom: result.expandedFrom,
-          stage: 'reranked',
-        });
+        settle(fallbackResult);
       }
     });
 
