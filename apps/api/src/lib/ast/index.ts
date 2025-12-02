@@ -407,8 +407,8 @@ export function parseFile(filepath: string, content: string): CodeChunk[] {
 
   const parser = new Parser();
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    parser.setLanguage(grammar as any);
+    // tree-sitter grammars don't export their types, cast required
+    parser.setLanguage(grammar as Parameters<typeof parser.setLanguage>[0]);
   } catch {
     // grammar incompatible with tree-sitter version
     return [];
