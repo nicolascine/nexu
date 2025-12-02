@@ -175,8 +175,8 @@ export function CodeGraph({ onNodeClick, codebaseId }: CodeGraphProps) {
     if (graphRef.current && graphMode === "3d-force") {
       graphRef.current.cameraPosition({ z: 400 });
       
-      let angle = 0;
       const rotateInterval = setInterval(() => {
+        const angle = (Date.now() / 100) % 360;
         if (graphRef.current && graphMode === "3d-force") {
           graphRef.current.cameraPosition({
             x: 400 * Math.sin(angle * Math.PI / 180),
