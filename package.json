@@ -9,6 +9,8 @@
     "build:api": "pnpm --filter @nexu/api build",
     "build:web": "pnpm --filter @nexu/web build",
     "lint": "pnpm -r lint",
+    "typecheck": "pnpm --filter @nexu/api typecheck",
+    "test": "pnpm --filter @nexu/api test",
     "ingest": "pnpm --filter @nexu/api ingest",
     "query": "pnpm --filter @nexu/api query",
     "chat": "pnpm --filter @nexu/api chat"
