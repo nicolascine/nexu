@@ -11,13 +11,17 @@
     "ingest": "tsx scripts/ingest.ts",
     "query": "tsx scripts/query.ts",
     "chat": "tsx scripts/chat.ts",
+    "agent": "tsx scripts/agent.ts",
+    "mcp": "tsx src/mcp/server.ts",
     "eval": "tsx tests/eval/retrieval.eval.ts",
     "eval:nexu": "tsx tests/eval/nexu.eval.ts",
+    "eval:calcom": "tsx tests/eval/calcom.eval.ts",
     "test": "node --import tsx --test tests/unit/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
     "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "^1.24.2",
     "@pinecone-database/pinecone": "^4.0.0",
     "ai": "^4.0.0",
     "dotenv": "^17.2.3",
