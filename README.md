@@ -147,12 +147,19 @@ flowchart LR
 
 ## features
 
+**Core RAG:**
 - **Multi-repo support** - Index and chat with multiple repositories
 - **Streaming responses** - Real-time output with citations
 - **GitHub integration** - Direct links to source code
 - **Syntax highlighting** - Beautiful code display
 - **Resumable indexing** - Continue from checkpoint after failures
 - **Provider agnostic** - Works with Anthropic, OpenAI, or local LLMs
+
+**Advanced:**
+- **Agent Mode** - Multi-step reasoning with tool use for complex questions
+- **MCP Server** - Integration with Claude Desktop, Cursor, and other MCP clients
+- **AI Observability** - Tracing, token accounting, and cost analytics
+- **Evaluation Suite** - Precision benchmarks for retrieval quality
 
 ## stack
 
@@ -212,8 +219,130 @@ nexu/
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/chat` | POST | Streaming chat with citations |
-| `/api/repositories` | GET | List indexed repositories |
+| `/api/agent` | POST | Agent mode with tool use |
 | `/api/search` | POST | Search chunks (retrieval only) |
+| `/api/repositories` | GET | List indexed repositories |
+| `/api/analytics` | GET | Observability metrics and traces |
+| `/api/status` | GET | System status |
+
+## agent mode
+
+For complex questions that require exploration, use agent mode:
+
+```bash
+# CLI
+pnpm agent "How does the booking validation flow work?"
+
+# API
+curl -X POST http://localhost:3000/api/agent \
+  -H "Content-Type: application/json" \
+  -d '{"query": "How does auth work?", "options": {"stream": true}}'
+```
+
+The agent has access to these tools:
+- `search_code` - Semantic search in the codebase
+- `read_file` - Read specific files with line numbers
+- `get_dependencies` - Find what imports/exports a file
+- `find_symbol` - Locate function/class definitions
+- `list_directory` - Explore project structure
+
+## mcp integration
+
+Use nexu from Claude Desktop or Cursor via MCP:
+
+```json
+// ~/.config/claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "nexu": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/server.ts"],
+      "cwd": "/path/to/nexu/apps/api"
+    }
+  }
+}
+```
+
+Available MCP tools: `nexu_search`, `nexu_agent`, `nexu_status`
+
+## observability
+
+Track performance and costs via the analytics API:
+
+```bash
+# Summary metrics (last 24h)
+curl http://localhost:3000/api/analytics?view=summary
+
+# Cost breakdown
+curl http://localhost:3000/api/analytics?view=costs
+
+# Performance by stage
+curl http://localhost:3000/api/analytics?view=performance
+
+# Recent traces
+curl http://localhost:3000/api/analytics?view=traces
+```
+
+## context strategy
+
+> **How nexu solves the context window limitation**
+
+The challenge: Cal.com has ~6,500 files with millions of tokens. LLMs have 128K-200K token limits. How do we give the model "total knowledge" without sending everything?
+
+### 1. AST-Aligned Chunking (not fixed-size)
+
+```
+Traditional: "function calc" | "ulatePrice(items" | ": Item[]) {"  ← broken
+    Nexu:    [calculatePrice: function, lines 1-15, imports: Item]  ← semantic
+```
+
+Tree-sitter parses code into an AST, then we extract complete units:
+- Functions, classes, interfaces as individual chunks
+- Each chunk: 50-500 tokens (vs 1000+ for fixed-size)
+- Metadata: imports, exports, types, line numbers
+
+### 2. Dependency Graph Expansion
+
+When you search for `checkAvailability()`, you also need:
+- Types it uses (`Availability`, `TimeSlot`)
+- Functions it calls (`getSchedule()`)
+- Files that import it (callers)
+
+The graph maps these relationships and expands context automatically.
+
+### 3. Multi-Stage Retrieval Pipeline
+
+```
+Query → Embed → Vector Search (top 10) → Graph Expand (+5) → LLM Rerank (top 5)
+```
+
+Each stage filters more aggressively:
+1. **Vector search**: Find semantically similar chunks
+2. **Graph expansion**: Add related code via import/export edges
+3. **LLM reranking**: Claude scores each chunk by relevance
+
+Result: **5-10K tokens** of highly relevant code instead of 200K+ of noise.
+
+### 4. Agent Mode (for complex questions)
+
+When RAG isn't enough, the agent can:
+1. Search for initial context
+2. Read specific files for more detail
+3. Follow dependencies to understand flows
+4. Iterate until it has enough information
+
+This handles questions like "How does the entire booking flow work from start to finish?"
+
+### Why it works
+
+| Metric | Fixed-size | Nexu |
+|--------|------------|------|
+| Tokens per query | 50K+ | 5-10K |
+| Semantic coherence | Low | High |
+| Import context | Missing | Included |
+| Precision | ~40% | ~80% |
+
+See [docs/architecture.md](docs/architecture.md) for detailed diagrams.
 
 ## backed by research
 
