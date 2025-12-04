@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/anthropic-cookbook/main/misc/mcp/mcp-config.schema.json",
+  "mcpServers": {
+    "nexu": {
+      "command": "npx",
+      "args": ["tsx", "src/mcp/server.ts"],
+      "cwd": "/path/to/nexu/apps/api",
+      "env": {
+        "ANTHROPIC_API_KEY": "your-api-key",
+        "OPENAI_API_KEY": "your-openai-key-for-embeddings",
+        "LLM_PROVIDER": "anthropic",
+        "LLM_MODEL": "claude-sonnet-4-20250514",
+        "EMBEDDING_PROVIDER": "openai",
+        "EMBEDDING_MODEL": "text-embedding-3-small"
+      }
+    }
+  }
+}
