@@ -4,8 +4,16 @@
 import { NextRequest } from 'next/server';
 import { search, initIndexAsync } from '@/lib/nexu';
 import type { CodeChunk } from '@/lib/ast';
-import { generateStream } from '@/lib/llm';
+import { generateStream, getLLMConfig, getEmbeddingConfig } from '@/lib/llm';
 import { logger } from '@/lib/logger';
+import {
+  startTrace,
+  startSpan,
+  endSpan,
+  recordTokens,
+  recordRetrieval,
+  endTrace,
+} from '@/lib/telemetry';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -62,6 +70,10 @@ function validateRequest(body: RequestBody): string | null {
 }
 
 export async function POST(request: NextRequest) {
+  const llmConfig = getLLMConfig();
+  const embeddingConfig = getEmbeddingConfig();
+  let traceId: string | null = null;
+
   try {
     const body: RequestBody = await request.json();
 
@@ -86,9 +98,16 @@ export async function POST(request: NextRequest) {
 
     const query = lastUserMessage.content;
 
+    // start trace for observability
+    traceId = startTrace(query, 'chat', options?.repository);
+
     // check index is loaded (supports both JSON and pgvector)
+    const initSpan = startSpan(traceId, 'init_index');
     const { jsonStore, pgStore } = await initIndexAsync();
+    endSpan(initSpan);
+
     if (!jsonStore && !pgStore) {
+      endTrace(traceId, false, embeddingConfig.model, llmConfig.model, 'Index not initialized');
       return new Response(
         JSON.stringify({ error: 'Index not initialized. Run `npm run ingest` first.' }),
         { status: 503, headers: { 'Content-Type': 'application/json' } }
@@ -96,6 +115,11 @@ export async function POST(request: NextRequest) {
     }
 
     // retrieve relevant chunks
+    const retrievalSpan = startSpan(traceId, 'retrieval', {
+      topK: options?.topK || 10,
+      reranker: options?.reranker || 'llm',
+    });
+
     const searchResult = await search({
       query,
       repositoryId: options?.repository,
@@ -108,6 +132,11 @@ export async function POST(request: NextRequest) {
         maxExpandedChunks: 15,
       },
     });
+
+    endSpan(retrievalSpan);
+
+    // record retrieval stats
+    recordRetrieval(traceId, searchResult.chunks.length, options?.reranker || 'llm');
 
     const chunks: CodeChunk[] = searchResult.chunks.map(c => ({
       id: `${c.filepath}:${c.startLine}-${c.endLine}`,
@@ -123,11 +152,19 @@ export async function POST(request: NextRequest) {
       types: [],
     }));
 
+    // estimate input tokens (rough: 4 chars per token)
+    const contextSize = chunks.reduce((sum, c) => sum + c.content.length, 0);
+    const estimatedInputTokens = Math.ceil((contextSize + query.length) / 4);
+
     // create streaming response
     const encoder = new TextEncoder();
+    const currentTraceId = traceId; // capture for closure
+    let outputTokenCount = 0;
 
     const stream = new ReadableStream({
       async start(controller) {
+        const generationSpan = startSpan(currentTraceId, 'generation');
+
         try {
           // stream chunks metadata first as a special message
           const chunksData = {
@@ -138,7 +175,7 @@ export async function POST(request: NextRequest) {
               endLine: c.endLine,
               nodeType: c.nodeType,
               name: c.name,
-              content: c.content, // Include code content for citations
+              content: c.content,
               language: c.language,
               score: c.score,
             })),
@@ -151,12 +188,25 @@ export async function POST(request: NextRequest) {
           for await (const text of generateStream({ query, chunks })) {
             // Vercel AI SDK text streaming format: 0:"text"\n
             controller.enqueue(encoder.encode(`0:${JSON.stringify(text)}\n`));
+            outputTokenCount += Math.ceil(text.length / 4); // rough estimate
           }
+
+          endSpan(generationSpan);
+
+          // record token usage
+          recordTokens(currentTraceId, estimatedInputTokens, outputTokenCount);
+
+          // end trace successfully
+          endTrace(currentTraceId, true, embeddingConfig.model, llmConfig.model);
 
           // signal completion
           controller.enqueue(encoder.encode(`d:{"finishReason":"stop"}\n`));
           controller.close();
         } catch (error) {
+          endSpan(generationSpan);
+          endTrace(currentTraceId, false, embeddingConfig.model, llmConfig.model,
+            error instanceof Error ? error.message : 'Generation failed');
+
           logger.error('Streaming error', { query }, error);
           controller.enqueue(
             encoder.encode(`3:${JSON.stringify({ error: 'Generation failed' })}\n`)
@@ -170,9 +220,15 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'X-Vercel-AI-Data-Stream': 'v1',
+        'X-Trace-Id': traceId,
       },
     });
   } catch (error) {
+    if (traceId) {
+      endTrace(traceId, false, embeddingConfig.model, llmConfig.model,
+        error instanceof Error ? error.message : 'Unknown error');
+    }
+
     logger.error('Chat API error', {}, error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return new Response(
