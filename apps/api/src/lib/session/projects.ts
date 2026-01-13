@@ -1,12 +1,8 @@
-// Projects Storage - Simple file-based storage for registered projects
-// In production, this would be a database
+// Projects Storage - SQLite-backed storage for registered projects
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { existsSync } from 'fs';
 import { getSessionContext, SessionContext } from './index';
-
-const DATA_DIR = join(process.cwd(), '.nexu');
-const PROJECTS_FILE = join(DATA_DIR, 'projects.json');
+import * as db from '../db';
 
 export interface Project {
   id: string;
@@ -21,31 +17,7 @@ export interface ProjectWithContext extends Project {
   status: 'active' | 'recent' | 'inactive';
 }
 
-function ensureDataDir() {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
-
-function loadProjects(): Project[] {
-  ensureDataDir();
-  if (!existsSync(PROJECTS_FILE)) {
-    return [];
-  }
-  try {
-    return JSON.parse(readFileSync(PROJECTS_FILE, 'utf-8'));
-  } catch {
-    return [];
-  }
-}
-
-function saveProjects(projects: Project[]) {
-  ensureDataDir();
-  writeFileSync(PROJECTS_FILE, JSON.stringify(projects, null, 2), 'utf-8');
-}
-
 function generateId(path: string): string {
-  // Create a simple ID from the path
   return path
     .replace(/^\//, '')
     .replace(/\//g, '--')
@@ -66,12 +38,23 @@ function getProjectStatus(context: SessionContext): 'active' | 'recent' | 'inact
   return 'inactive';
 }
 
-export function listProjects(): ProjectWithContext[] {
-  const projects = loadProjects();
+function dbProjectToProject(dbProject: db.DbProject): Project {
+  return {
+    id: dbProject.id,
+    name: dbProject.name,
+    path: dbProject.path,
+    addedAt: dbProject.created_at,
+    lastAccessed: dbProject.last_accessed || undefined,
+  };
+}
 
-  return projects
-    .map(project => {
+export function listProjects(): ProjectWithContext[] {
+  const dbProjects = db.getAllProjects();
+
+  return dbProjects
+    .map(dbProject => {
       try {
+        const project = dbProjectToProject(dbProject);
         const context = getSessionContext(project.path);
         const status = getProjectStatus(context);
         return { ...project, context, status };
@@ -95,18 +78,16 @@ export function listProjects(): ProjectWithContext[] {
 }
 
 export function getProject(id: string): ProjectWithContext | null {
-  const projects = loadProjects();
-  const project = projects.find(p => p.id === id);
-
-  if (!project) return null;
+  const dbProject = db.getProject(id);
+  if (!dbProject) return null;
 
   try {
+    const project = dbProjectToProject(dbProject);
     const context = getSessionContext(project.path);
     const status = getProjectStatus(context);
 
     // Update last accessed
-    project.lastAccessed = new Date().toISOString();
-    saveProjects(projects);
+    db.touchProject(id);
 
     return { ...project, context, status };
   } catch {
@@ -115,49 +96,79 @@ export function getProject(id: string): ProjectWithContext | null {
 }
 
 export function addProject(path: string): Project {
-  const projects = loadProjects();
-
-  // Check if already exists
-  const existing = projects.find(p => p.path === path);
-  if (existing) {
-    return existing;
-  }
-
   // Validate path exists
   if (!existsSync(path)) {
     throw new Error(`Path does not exist: ${path}`);
   }
 
-  const project: Project = {
-    id: generateId(path),
-    name: path.split('/').pop() || 'unknown',
-    path,
-    addedAt: new Date().toISOString(),
-  };
+  // Check if already exists
+  const existing = db.getProjectByPath(path);
+  if (existing) {
+    return dbProjectToProject(existing);
+  }
 
-  projects.push(project);
-  saveProjects(projects);
+  const id = generateId(path);
+  const name = path.split('/').pop() || 'unknown';
 
-  return project;
+  const dbProject = db.createProject(id, name, path);
+  return dbProjectToProject(dbProject);
 }
 
 export function removeProject(id: string): boolean {
-  const projects = loadProjects();
-  const index = projects.findIndex(p => p.id === id);
-
-  if (index === -1) return false;
-
-  projects.splice(index, 1);
-  saveProjects(projects);
-
-  return true;
+  return db.deleteProject(id);
 }
 
 export function getProjectByPath(path: string): ProjectWithContext | null {
-  const projects = loadProjects();
-  const project = projects.find(p => p.path === path);
+  const dbProject = db.getProjectByPath(path);
+  if (!dbProject) return null;
+  return getProject(dbProject.id);
+}
 
+// Session management
+export function startProjectSession(projectId: string): db.DbSession | null {
+  const project = db.getProject(projectId);
   if (!project) return null;
 
-  return getProject(project.id);
+  // Get current context for the session
+  try {
+    const context = getSessionContext(project.path);
+    return db.startSession(projectId, context.git.branch, context);
+  } catch {
+    return db.startSession(projectId);
+  }
+}
+
+export function endProjectSession(
+  sessionId: string,
+  summary?: string,
+  notes?: string
+): db.DbSession | null {
+  return db.endSession(sessionId, summary, notes);
+}
+
+export function getProjectSessions(projectId: string, limit: number = 20): db.DbSession[] {
+  return db.getProjectSessions(projectId, limit);
+}
+
+export function getActiveSession(projectId: string): db.DbSession | null {
+  return db.getActiveSession(projectId);
+}
+
+// Timeline
+export function getProjectTimeline(projectId: string, limit: number = 50) {
+  return db.getProjectTimeline(projectId, limit);
+}
+
+export function addProjectNote(projectId: string, note: string): void {
+  const session = db.getActiveSession(projectId);
+  db.recordNote(projectId, note, session?.id);
+}
+
+export function addProjectMilestone(projectId: string, title: string, description?: string): void {
+  db.recordMilestone(projectId, title, description);
+}
+
+export function addProjectBlocker(projectId: string, title: string, description?: string): void {
+  const session = db.getActiveSession(projectId);
+  db.recordBlocker(projectId, title, description, session?.id);
 }

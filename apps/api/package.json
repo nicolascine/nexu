@@ -25,6 +25,7 @@
     "@modelcontextprotocol/sdk": "^1.24.2",
     "@pinecone-database/pinecone": "^4.0.0",
     "ai": "^4.0.0",
+    "better-sqlite3": "^12.6.0",
     "dotenv": "^17.2.3",
     "next": "14.2.18",
     "openai": "^4.73.0",
@@ -39,6 +40,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.9.0",
     "@types/pg": "^8.15.6",
     "@types/react": "^18.3.12",
