@@ -65,9 +65,12 @@ Response:
 POST /api/projects/:id/sessions
 Response: { "session": { "id": "string", "startedAt": "ISO date", "branch": "string" } }
 
-POST /api/projects/:id/sessions/:sessionId/end
+POST /api/projects/:id/sessions/:sessionId
 Body: { "summary": "string", "notes": "string" }
-Response: { "session": { ... } }
+Response: { "session": { "id": "...", "endedAt": "...", "durationMinutes": number, ... } }
+
+GET /api/projects/:id/sessions/:sessionId
+Response: { "session": { ... full session details ... } }
 ```
 
 ---
@@ -128,6 +131,21 @@ export async function getProjectSessions(projectId: string): Promise<{
 export async function startSession(projectId: string): Promise<Session> {
   const response = await fetch(`${API_URL}/api/projects/${projectId}/sessions`, {
     method: 'POST',
+  });
+  const data = await response.json();
+  return data.session;
+}
+
+export async function endSession(
+  projectId: string,
+  sessionId: string,
+  summary?: string,
+  notes?: string
+): Promise<Session> {
+  const response = await fetch(`${API_URL}/api/projects/${projectId}/sessions/${sessionId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ summary, notes }),
   });
   const data = await response.json();
   return data.session;
@@ -353,11 +371,15 @@ Create `src/components/SessionsPanel.tsx`:
 
 ```typescript
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getProjectSessions, startSession, type Session } from '../lib/api';
+import { getProjectSessions, startSession, endSession, type Session } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { formatDistanceToNow, formatDuration, intervalToDuration } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Textarea } from './ui/textarea';
+import { Input } from './ui/input';
 
 interface SessionsProps {
   projectId: string;
@@ -365,6 +387,9 @@ interface SessionsProps {
 
 export function SessionsPanel({ projectId }: SessionsProps) {
   const queryClient = useQueryClient();
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
+  const [summary, setSummary] = useState('');
+  const [notes, setNotes] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['sessions', projectId],
@@ -376,6 +401,17 @@ export function SessionsPanel({ projectId }: SessionsProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions', projectId] });
       queryClient.invalidateQueries({ queryKey: ['timeline', projectId] });
+    },
+  });
+
+  const endMutation = useMutation({
+    mutationFn: (sessionId: string) => endSession(projectId, sessionId, summary, notes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['timeline', projectId] });
+      setEndDialogOpen(false);
+      setSummary('');
+      setNotes('');
     },
   });
 
@@ -412,6 +448,41 @@ export function SessionsPanel({ projectId }: SessionsProps) {
             <p className="text-sm text-muted-foreground mt-1">
               Started {formatDistanceToNow(new Date(activeSession.startedAt), { addSuffix: true })}
             </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 w-full"
+              onClick={() => setEndDialogOpen(true)}
+            >
+              ⏹️ End Session
+            </Button>
+
+            <Dialog open={endDialogOpen} onOpenChange={setEndDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>End Session</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <Input
+                    placeholder="Session summary (what did you accomplish?)"
+                    value={summary}
+                    onChange={(e) => setSummary(e.target.value)}
+                  />
+                  <Textarea
+                    placeholder="Notes for next time..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                  <Button
+                    className="w-full"
+                    onClick={() => endMutation.mutate(activeSession.id)}
+                    disabled={endMutation.isPending}
+                  >
+                    {endMutation.isPending ? 'Ending...' : 'End Session'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
 

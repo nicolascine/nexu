@@ -1,8 +1,19 @@
 # nexu
 
-**Chat with your codebase.** AST-aware chunking + graph expansion for precise code retrieval.
+**Chat with your codebase. Remember where you left off.**
+
+AST-aware chunking + graph expansion for precise code retrieval, plus session continuity for seamless AI-assisted development.
 
 [Live Demo](https://nexu.sh)
+
+## the problem we solve
+
+Every time you start a new AI chat, you lose context. You explain the same thing over and over:
+- "I'm working on the auth feature..."
+- "Here's what I did yesterday..."
+- "The codebase structure is..."
+
+**Nexu remembers.** Say "use nexu" and your AI assistant knows exactly where you left off.
 
 ## why nexu?
 
@@ -155,6 +166,13 @@ flowchart LR
 - **Resumable indexing** - Continue from checkpoint after failures
 - **Provider agnostic** - Works with Anthropic, OpenAI, or local LLMs
 
+**Session Continuity:**
+- **"use nexu" pattern** - Say it in Claude Code/Cursor to auto-inject context
+- **Session tracking** - Start/end sessions with summaries and notes
+- **Project timeline** - Visual history of milestones, blockers, and notes
+- **Context generation** - Auto-generates markdown context from git state
+- **SQLite storage** - Local persistence of session history
+
 **Advanced:**
 - **Agent Mode** - Multi-step reasoning with tool use for complex questions
 - **MCP Server** - Integration with Claude Desktop, Cursor, and other MCP clients
@@ -170,9 +188,11 @@ Vendor lock-in free by design.
 | **LLM** | Anthropic Claude, OpenAI GPT, Ollama (local) |
 | **Embeddings** | OpenAI, Ollama (nomic-embed-text, etc.) |
 | **Vector Store** | pgvector (Supabase or self-hosted) |
+| **Session Store** | SQLite (better-sqlite3, local) |
 | **Frontend** | React + Vite + Tailwind + shadcn/ui |
 | **Backend** | Next.js 14 (API routes) |
 | **Parser** | tree-sitter (TypeScript, Python, Go, Rust, etc.) |
+| **MCP** | Model Context Protocol for IDE integration |
 
 ## configuration
 
@@ -201,21 +221,29 @@ VECTOR_STORE_TYPE=pgvector
 ```
 nexu/
 ├── apps/
-│   ├── api/          # Next.js API (backend)
+│   ├── api/                    # Next.js API (backend)
 │   │   ├── src/
-│   │   │   ├── app/api/     # API routes
-│   │   │   └── lib/         # Core logic
-│   │   └── scripts/         # Ingestion scripts
-│   └── web/          # React frontend (Vite)
+│   │   │   ├── app/api/        # API routes
+│   │   │   │   └── projects/   # Session continuity endpoints
+│   │   │   ├── lib/
+│   │   │   │   ├── ast/        # tree-sitter parsing
+│   │   │   │   ├── db/         # SQLite database
+│   │   │   │   ├── session/    # Session context logic
+│   │   │   │   └── retrieval/  # Vector search
+│   │   │   └── mcp/            # MCP server
+│   │   └── scripts/            # CLI tools (context, ingest)
+│   └── web/                    # React frontend (Vite)
 │       └── src/
-│           ├── components/  # UI components
-│           ├── hooks/       # React hooks
-│           └── pages/       # Routes
-└── packages/         # Shared packages (future)
+│           ├── components/     # UI components
+│           ├── hooks/          # React hooks
+│           └── pages/          # Routes
+├── docs/                       # Documentation & Lovable prompts
+└── packages/                   # Shared packages (future)
 ```
 
 ## api endpoints
 
+**RAG & Chat:**
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/chat` | POST | Streaming chat with citations |
@@ -224,6 +252,19 @@ nexu/
 | `/api/repositories` | GET | List indexed repositories |
 | `/api/analytics` | GET | Observability metrics and traces |
 | `/api/status` | GET | System status |
+
+**Session Continuity:**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/projects` | GET | List registered projects |
+| `/api/projects` | POST | Add a new project |
+| `/api/projects/:id` | GET | Get project details |
+| `/api/projects/:id` | DELETE | Remove a project |
+| `/api/projects/:id/context` | GET | Get session context (JSON/markdown) |
+| `/api/projects/:id/sessions` | GET | Get session history |
+| `/api/projects/:id/sessions` | POST | Start a new session |
+| `/api/projects/:id/timeline` | GET | Get project timeline |
+| `/api/projects/:id/timeline` | POST | Add note/milestone/blocker |
 
 ## agent mode
 
@@ -252,6 +293,7 @@ Use nexu from Claude Desktop or Cursor via MCP:
 
 ```json
 // ~/.config/claude/claude_desktop_config.json
+// or ~/.claude/mcp.json for Claude Code
 {
   "mcpServers": {
     "nexu": {
@@ -264,6 +306,74 @@ Use nexu from Claude Desktop or Cursor via MCP:
 ```
 
 Available MCP tools: `nexu_search`, `nexu_agent`, `nexu_status`
+
+**Session Continuity tools:**
+- `nexu_session_context` - Full context (git, commits, TODOs, recent files)
+- `nexu_continue` - Quick summary of where you left off
+- `nexu_recent_files` - Recently modified files
+
+### "use nexu" pattern
+
+Just say "use nexu" in your prompt and the AI will automatically fetch your session context:
+
+```
+> use nexu, help me continue with the auth feature
+
+Nexu: I see you're working on branch feat/auth-refactor.
+Last commit: "add jwt validation middleware"
+You have 3 uncommitted changes and 2 pending TODOs.
+Suggested next step: Implement refresh token rotation...
+```
+
+## session continuity api
+
+Manage projects, sessions, and timeline via REST:
+
+```bash
+# List registered projects
+curl http://localhost:3001/api/projects
+
+# Add a project
+curl -X POST http://localhost:3001/api/projects \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/path/to/your/project"}'
+
+# Get session context (markdown for copying to AI)
+curl http://localhost:3001/api/projects/:id/context?format=markdown
+
+# Start a session
+curl -X POST http://localhost:3001/api/projects/:id/sessions
+
+# Get project timeline
+curl http://localhost:3001/api/projects/:id/timeline
+
+# Add a milestone
+curl -X POST http://localhost:3001/api/projects/:id/timeline \
+  -H "Content-Type: application/json" \
+  -d '{"type": "milestone", "title": "Auth complete", "description": "JWT + refresh tokens"}'
+```
+
+### cli context tool
+
+Generate session context from command line:
+
+```bash
+cd apps/api
+
+# Generate context for current directory
+pnpm context
+
+# Generate for a specific path and copy to clipboard
+pnpm context -- --path /path/to/project --copy
+
+# Output:
+# ## Session Context: my-project
+# **Branch:** feat/new-feature
+# **Last commit:** abc123 - add validation
+# **Uncommitted changes:** 5 files
+# **TODOs found:** 3
+# **Suggested next:** Continue implementing validation logic
+```
 
 ## observability
 
@@ -362,18 +472,27 @@ Our chunking approach is based on the **cAST paper** from Carnegie Mellon Univer
 
 ## roadmap
 
-### v0.2 (next)
+### v0.2 - session continuity (current)
+- [x] MCP server with session context tools
+- [x] "use nexu" pattern for auto-context injection
+- [x] SQLite database for session persistence
+- [x] Project timeline with milestones, notes, blockers
+- [x] Session tracking (start, end, duration)
+- [x] CLI context generation tool
+- [ ] Dashboard UI with timeline visualization (Lovable)
+
+### v0.3
 - [ ] Interactive dependency graph visualization
 - [ ] Call graph visualization
 - [ ] File tree explorer with search
 
-### v0.3
+### v0.4
 - [ ] Multi-turn conversation memory
 - [ ] Code editing suggestions with diffs
 - [ ] VSCode extension
 - [ ] CLI tool (`npx nexu chat`)
 
-### v0.4
+### v0.5
 - [ ] GitHub App for automatic indexing
 - [ ] Team workspaces
 - [ ] Custom system prompts per repo
@@ -384,6 +503,7 @@ Our chunking approach is based on the **cAST paper** from Carnegie Mellon Univer
 - Self-hosted Docker image
 - Plugin system for custom parsers
 - Code review integration
+- Automatic commit detection in timeline
 
 ## contributing
 
