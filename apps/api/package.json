@@ -12,6 +12,7 @@
     "query": "tsx scripts/query.ts",
     "chat": "tsx scripts/chat.ts",
     "agent": "tsx scripts/agent.ts",
+    "context": "tsx scripts/context.ts",
     "mcp": "tsx src/mcp/server.ts",
     "eval": "tsx tests/eval/retrieval.eval.ts",
     "eval:nexu": "tsx tests/eval/nexu.eval.ts",
