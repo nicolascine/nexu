@@ -14,18 +14,46 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { search, getStatus, initIndexAsync } from '../lib/nexu/index.js';
 import { runAgent } from '../lib/agent/index.js';
+import {
+  getSessionContext,
+  formatSessionContextAsMarkdown,
+  getRecentFiles,
+  getGitBranch,
+  getLastCommit,
+  getUncommittedChanges,
+  findTodos,
+  isGitRepo,
+} from '../lib/session/index.js';
 
 // server instance
 const server = new Server(
   {
     name: 'nexu-mcp',
-    version: '0.1.0',
+    version: '0.2.0',
   },
   {
     capabilities: {
       tools: {},
       resources: {},
     },
+    instructions: `Nexu is your coding memory assistant. It helps you remember where you left off and provides context about projects.
+
+IMPORTANT: When the user says "use nexu" in their prompt, you MUST call one of the nexu session tools before answering:
+- nexu_session_context: Full context (git, commits, TODOs, recent files)
+- nexu_continue: Quick summary of where you left off
+- nexu_recent_files: Just the recently modified files
+
+Example triggers:
+- "use nexu" → call nexu_session_context
+- "where did we leave off?" → call nexu_continue
+- "what was I working on?" → call nexu_continue
+- "what files changed recently?" → call nexu_recent_files
+
+For code search and questions about the codebase, use:
+- nexu_search: Semantic search in indexed code
+- nexu_agent: Complex questions requiring exploration
+
+Always provide the projectPath when calling session tools. If not specified, ask the user for it.`,
   }
 );
 
@@ -84,6 +112,60 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {},
           required: [],
+        },
+      },
+      {
+        name: 'nexu_session_context',
+        description: 'Get the current session context for a project. Returns git state, current task, recent commits, uncommitted changes, TODOs, and suggested next steps. Use this when the user says "use nexu" or asks "where did we leave off?"',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            projectPath: {
+              type: 'string',
+              description: 'Absolute path to the project directory',
+            },
+            includeGit: {
+              type: 'boolean',
+              description: 'Include git information (branch, commits, changes). Default: true',
+            },
+            includeTodos: {
+              type: 'boolean',
+              description: 'Include TODO/FIXME comments from code. Default: true',
+            },
+          },
+          required: ['projectPath'],
+        },
+      },
+      {
+        name: 'nexu_recent_files',
+        description: 'Get recently modified files in a project. Useful for understanding what has changed recently.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            projectPath: {
+              type: 'string',
+              description: 'Absolute path to the project directory',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of files to return. Default: 15',
+            },
+          },
+          required: ['projectPath'],
+        },
+      },
+      {
+        name: 'nexu_continue',
+        description: 'Quick summary of where you left off in a project. Returns current task, branch, last commit, and suggested next step. Perfect for resuming work.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            projectPath: {
+              type: 'string',
+              description: 'Absolute path to the project directory',
+            },
+          },
+          required: ['projectPath'],
         },
       },
     ],
@@ -196,6 +278,93 @@ ${status.meta ? `
 - Files: ${status.meta.stats.files}
 - Chunks: ${status.meta.stats.chunks}
 - Indexed at: ${status.meta.indexedAt}` : ''}`,
+            },
+          ],
+        };
+      }
+
+      case 'nexu_session_context': {
+        const projectPath = args?.projectPath as string;
+        if (!projectPath) {
+          throw new McpError(ErrorCode.InvalidParams, 'projectPath is required');
+        }
+
+        const context = getSessionContext(projectPath);
+        const markdown = formatSessionContextAsMarkdown(context);
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: markdown,
+            },
+          ],
+        };
+      }
+
+      case 'nexu_recent_files': {
+        const projectPath = args?.projectPath as string;
+        const limit = (args?.limit as number) || 15;
+
+        if (!projectPath) {
+          throw new McpError(ErrorCode.InvalidParams, 'projectPath is required');
+        }
+
+        const files = getRecentFiles(projectPath, limit);
+
+        if (files.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: 'No recently modified files found in the last 10 commits.',
+              },
+            ],
+          };
+        }
+
+        const formatted = files.map(f => {
+          const icon = f.status === 'new' ? '(new)' : f.status === 'deleted' ? '(deleted)' : '(modified)';
+          return `- \`${f.path}\` ${icon}`;
+        }).join('\n');
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `**Recently Modified Files:**\n\n${formatted}`,
+            },
+          ],
+        };
+      }
+
+      case 'nexu_continue': {
+        const projectPath = args?.projectPath as string;
+        if (!projectPath) {
+          throw new McpError(ErrorCode.InvalidParams, 'projectPath is required');
+        }
+
+        const context = getSessionContext(projectPath);
+
+        let summary = `**Project:** ${context.project.name}\n`;
+        summary += `**Branch:** \`${context.currentTask.branch}\`\n`;
+        summary += `**Current Task:** ${context.currentTask.summary}\n\n`;
+
+        if (context.git.lastCommit) {
+          summary += `**Last Commit:** ${context.git.lastCommit.message} (${context.git.lastCommit.date})\n\n`;
+        }
+
+        if (context.git.uncommittedChanges.length > 0) {
+          summary += `**⚠️ Uncommitted Changes:** ${context.git.uncommittedChanges.length} files\n\n`;
+        }
+
+        summary += `**Suggested Next Step:** ${context.suggestedNextStep}`;
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: summary,
             },
           ],
         };
