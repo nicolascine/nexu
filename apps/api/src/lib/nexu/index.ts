@@ -5,11 +5,25 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { CodeChunk } from '../ast';
 import type { DependencyGraph, Import } from '../graph';
-import { loadStore, type VectorStore, type RetrievalResult, type RetrievalOptions } from '../retrieval';
+import {
+  loadStore,
+  type VectorStore,
+  type RetrievalResult,
+  type RetrievalOptions,
+} from '../retrieval';
 import type { IVectorStore } from '../retrieval/stores/types';
 import { PgVectorStore } from '../retrieval/stores/pgvector-store';
 import { embed } from '../llm';
-import { generate, generateStream, createLLMProvider, getLLMConfig, getEmbeddingConfig, type GenerateResult, type Citation } from '../llm';
+import {
+  generate,
+  generateStream,
+  createLLMProvider,
+  getLLMConfig,
+  getEmbeddingConfig,
+  type GenerateResult,
+  type Citation,
+} from '../llm';
+import { getSessionContext, formatSessionContextAsMarkdown } from '../session';
 
 // config paths
 const DATA_DIR = join(process.cwd(), '.nexu');
@@ -69,6 +83,8 @@ export interface ChatRequest {
   query: string;
   history?: ChatMessage[];
   options?: RetrievalOptions;
+  sessionContext?: string; // Markdown-formatted session context from nexu
+  projectPath?: string; // If provided, auto-fetches session context
 }
 
 export interface ChatResponse {
@@ -112,19 +128,27 @@ function loadGraph(): DependencyGraph | null {
 
   const data = JSON.parse(readFileSync(GRAPH_FILE, 'utf-8'));
 
-  const nodes = new Map<string, {
-    filepath: string;
-    exports: Set<string>;
-    imports: Import[];
-    chunks: CodeChunk[];
-  }>();
+  const nodes = new Map<
+    string,
+    {
+      filepath: string;
+      exports: Set<string>;
+      imports: Import[];
+      chunks: CodeChunk[];
+    }
+  >();
 
-  for (const [key, value] of Object.entries(data.nodes) as Array<[string, {
-    filepath: string;
-    exports: string[];
-    imports: Import[];
-    chunkIds: string[];
-  }]>) {
+  for (const [key, value] of Object.entries(data.nodes) as Array<
+    [
+      string,
+      {
+        filepath: string;
+        exports: string[];
+        imports: Import[];
+        chunkIds: string[];
+      },
+    ]
+  >) {
     nodes.set(key, {
       filepath: value.filepath,
       exports: new Set(value.exports),
@@ -195,7 +219,11 @@ async function initPgVectorStore(): Promise<IVectorStore> {
 }
 
 // initialize/load index (cached for serverless) - sync version for JSON
-export function initIndex(): { store: VectorStore | null; graph: DependencyGraph | null; meta: IndexMeta | null } {
+export function initIndex(): {
+  store: VectorStore | null;
+  graph: DependencyGraph | null;
+  meta: IndexMeta | null;
+} {
   // for pgvector, return null - use initIndexAsync instead
   if (VECTOR_STORE_TYPE === 'pgvector') {
     return { store: null, graph: null, meta: null };
@@ -406,7 +434,7 @@ export async function chat(request: ChatRequest): Promise<ChatResponse> {
     options: request.options,
   });
 
-  const chunks: CodeChunk[] = searchResult.chunks.map(c => ({
+  const chunks: CodeChunk[] = searchResult.chunks.map((c) => ({
     id: `${c.filepath}:${c.startLine}-${c.endLine}`,
     filepath: c.filepath,
     startLine: c.startLine,
@@ -420,9 +448,21 @@ export async function chat(request: ChatRequest): Promise<ChatResponse> {
     types: [],
   }));
 
+  // Get session context if projectPath is provided, or use the provided sessionContext
+  let sessionContext = request.sessionContext;
+  if (!sessionContext && request.projectPath) {
+    try {
+      const context = getSessionContext(request.projectPath);
+      sessionContext = formatSessionContextAsMarkdown(context);
+    } catch {
+      // Project path might not be valid - continue without session context
+    }
+  }
+
   const result = await generate({
     query: request.query,
     chunks,
+    sessionContext,
   });
 
   return {
@@ -441,7 +481,7 @@ export async function* chatStream(request: ChatRequest): AsyncIterable<string> {
     options: request.options,
   });
 
-  const chunks: CodeChunk[] = searchResult.chunks.map(c => ({
+  const chunks: CodeChunk[] = searchResult.chunks.map((c) => ({
     id: `${c.filepath}:${c.startLine}-${c.endLine}`,
     filepath: c.filepath,
     startLine: c.startLine,
@@ -455,8 +495,20 @@ export async function* chatStream(request: ChatRequest): AsyncIterable<string> {
     types: [],
   }));
 
+  // Get session context if projectPath is provided
+  let sessionContext = request.sessionContext;
+  if (!sessionContext && request.projectPath) {
+    try {
+      const context = getSessionContext(request.projectPath);
+      sessionContext = formatSessionContextAsMarkdown(context);
+    } catch {
+      // Continue without session context
+    }
+  }
+
   yield* generateStream({
     query: request.query,
+    sessionContext,
     chunks,
   });
 }

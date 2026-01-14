@@ -12,7 +12,10 @@ export type {
   ChatOptions,
   ChatResult,
   EmbedOptions,
-  EmbedResult, EmbeddingProvider, LLMProvider, Message
+  EmbedResult,
+  EmbeddingProvider,
+  LLMProvider,
+  Message,
 } from './types';
 
 export { getEmbeddingConfig, getLLMConfig } from './config';
@@ -67,6 +70,7 @@ export interface GenerateOptions {
   query: string;
   chunks: CodeChunk[];
   stream?: boolean;
+  sessionContext?: string; // Optional session context markdown
 }
 
 export interface Citation {
@@ -98,7 +102,7 @@ Bad Answer: "Based on the code in src/auth.ts, authentication is handled using..
 Good Answer: "Authentication is handled in \`src/auth.ts\` using the \`AuthService\` class..."`;
 
 // context construction
-function buildContext(query: string, chunks: CodeChunk[]): string {
+function buildContext(query: string, chunks: CodeChunk[], sessionContext?: string): string {
   const chunksContext = chunks
     .map(
       (chunk, i) => `
@@ -116,12 +120,22 @@ ${chunk.content}
     )
     .join('\n');
 
-  return `<codebase_context>
+  // Include session context if provided
+  const sessionSection = sessionContext
+    ? `<session_context>
+${sessionContext}
+</session_context>
+
+`
+    : '';
+
+  return `${sessionSection}<codebase_context>
 ${chunksContext}
 </codebase_context>
 
 <instructions>
-Answer the user's query based ONLY on the code above.
+Answer the user's query based on the code context above.
+${sessionContext ? 'Consider the session context (git state, TODOs, recent work) when providing relevant suggestions.' : ''}
 Always cite your sources with exact file paths and line numbers.
 If information is not in the provided code, say so.
 DO NOT start your answer with "Based on the code...", "The provided context...", or similar phrases. Start directly with the answer.
@@ -142,7 +156,7 @@ ${query}
  */
 export async function generate(options: GenerateOptions): Promise<GenerateResult> {
   const provider = createLLMProvider();
-  const context = buildContext(options.query, options.chunks);
+  const context = buildContext(options.query, options.chunks, options.sessionContext);
 
   const chatOptions: ChatOptions = {
     messages: [
@@ -154,7 +168,7 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
   const result = await provider.chat(chatOptions);
 
   // citations are extracted from chunk metadata, not parsed from LLM response
-  const citations: Citation[] = options.chunks.map(chunk => ({
+  const citations: Citation[] = options.chunks.map((chunk) => ({
     filepath: chunk.filepath,
     startLine: chunk.startLine,
     endLine: chunk.endLine,
@@ -171,11 +185,9 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
  * Streaming version of generate. Yields text chunks as they arrive.
  * Use this for real-time chat interfaces.
  */
-export async function* generateStream(
-  options: GenerateOptions
-): AsyncIterable<string> {
+export async function* generateStream(options: GenerateOptions): AsyncIterable<string> {
   const provider = createLLMProvider();
-  const context = buildContext(options.query, options.chunks);
+  const context = buildContext(options.query, options.chunks, options.sessionContext);
 
   const chatOptions: ChatOptions = {
     messages: [
