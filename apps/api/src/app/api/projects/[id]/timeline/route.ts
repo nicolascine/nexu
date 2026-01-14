@@ -8,12 +8,10 @@ import {
   addProjectNote,
   addProjectMilestone,
   addProjectBlocker,
+  syncProjectCommits,
 } from '../../../../../lib/session/projects';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const project = getProject(params.id);
     if (!project) {
@@ -22,11 +20,17 @@ export async function GET(
 
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    const sync = url.searchParams.get('sync') !== 'false'; // sync by default
+
+    // Sync new commits from git to timeline
+    if (sync) {
+      syncProjectCommits(params.id);
+    }
 
     const events = getProjectTimeline(params.id, limit);
 
     // Parse JSON data for each event
-    const timeline = events.map(event => ({
+    const timeline = events.map((event) => ({
       id: event.id,
       type: event.event_type,
       timestamp: event.timestamp,
@@ -47,10 +51,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const project = getProject(params.id);
     if (!project) {

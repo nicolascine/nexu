@@ -52,7 +52,7 @@ export function listProjects(): ProjectWithContext[] {
   const dbProjects = db.getAllProjects();
 
   return dbProjects
-    .map(dbProject => {
+    .map((dbProject) => {
       try {
         const project = dbProjectToProject(dbProject);
         const context = getSessionContext(project.path);
@@ -171,4 +171,45 @@ export function addProjectMilestone(projectId: string, title: string, descriptio
 export function addProjectBlocker(projectId: string, title: string, description?: string): void {
   const session = db.getActiveSession(projectId);
   db.recordBlocker(projectId, title, description, session?.id);
+}
+
+// Sync git commits to timeline
+export function syncProjectCommits(projectId: string): number {
+  const project = db.getProject(projectId);
+  if (!project) return 0;
+
+  // Get recent commits from git
+  const context = getSessionContext(project.path);
+  const session = db.getActiveSession(projectId);
+
+  let synced = 0;
+
+  // Get the last commit first (most important)
+  if (context.git.lastCommit && !db.hasCommit(projectId, context.git.lastCommit.hash)) {
+    db.recordCommit(
+      projectId,
+      context.git.lastCommit.hash,
+      context.git.lastCommit.message,
+      context.git.lastCommit.author,
+      session?.id
+    );
+    synced++;
+  }
+
+  // Sync recent commits (in reverse order so timeline is chronological)
+  const recentCommits = [...context.git.recentCommits].reverse();
+  for (const commit of recentCommits) {
+    if (!db.hasCommit(projectId, commit.hash)) {
+      db.recordCommit(
+        projectId,
+        commit.hash,
+        commit.message,
+        (commit as { author?: string }).author || 'unknown',
+        session?.id
+      );
+      synced++;
+    }
+  }
+
+  return synced;
 }

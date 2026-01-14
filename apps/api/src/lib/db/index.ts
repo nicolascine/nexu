@@ -123,7 +123,9 @@ const statements = {
   getProject: db.prepare('SELECT * FROM projects WHERE id = ?'),
   getProjectByPath: db.prepare('SELECT * FROM projects WHERE path = ?'),
   getAllProjects: db.prepare('SELECT * FROM projects ORDER BY last_accessed DESC'),
-  updateProjectAccess: db.prepare('UPDATE projects SET last_accessed = CURRENT_TIMESTAMP WHERE id = ?'),
+  updateProjectAccess: db.prepare(
+    'UPDATE projects SET last_accessed = CURRENT_TIMESTAMP WHERE id = ?'
+  ),
   deleteProject: db.prepare('DELETE FROM projects WHERE id = ?'),
 
   // Sessions
@@ -212,10 +214,15 @@ export function startSession(projectId: string, branch?: string, context?: objec
   statements.insertSession.run(id, projectId, branch || null, contextJson);
 
   // Record timeline event
-  addTimelineEvent(projectId, 'session_start', {
-    title: 'Session started',
-    description: branch ? `Working on branch: ${branch}` : undefined,
-  }, id);
+  addTimelineEvent(
+    projectId,
+    'session_start',
+    {
+      title: 'Session started',
+      description: branch ? `Working on branch: ${branch}` : undefined,
+    },
+    id
+  );
 
   return statements.getSession.get(id) as DbSession;
 }
@@ -227,14 +234,19 @@ export function endSession(sessionId: string, summary?: string, notes?: string):
 
   if (session) {
     // Record timeline event
-    addTimelineEvent(session.project_id, 'session_end', {
-      title: 'Session ended',
-      description: summary,
-      metadata: {
-        duration_minutes: session.duration_minutes,
-        notes
+    addTimelineEvent(
+      session.project_id,
+      'session_end',
+      {
+        title: 'Session ended',
+        description: summary,
+        metadata: {
+          duration_minutes: session.duration_minutes,
+          notes,
+        },
       },
-    }, sessionId);
+      sessionId
+    );
   }
 
   return session;
@@ -292,19 +304,20 @@ export function recordCommit(
   author: string,
   sessionId?: string
 ): void {
-  addTimelineEvent(projectId, 'commit', {
-    title: message,
-    description: `by ${author}`,
-    metadata: { hash, author },
-  }, sessionId);
+  addTimelineEvent(
+    projectId,
+    'commit',
+    {
+      title: message,
+      description: `by ${author}`,
+      metadata: { hash, author },
+    },
+    sessionId
+  );
 }
 
 // Utility: Record a milestone
-export function recordMilestone(
-  projectId: string,
-  title: string,
-  description?: string
-): void {
+export function recordMilestone(projectId: string, title: string, description?: string): void {
   addTimelineEvent(projectId, 'milestone', {
     title,
     description,
@@ -318,22 +331,41 @@ export function recordBlocker(
   description?: string,
   sessionId?: string
 ): void {
-  addTimelineEvent(projectId, 'blocker', {
-    title,
-    description,
-  }, sessionId);
+  addTimelineEvent(
+    projectId,
+    'blocker',
+    {
+      title,
+      description,
+    },
+    sessionId
+  );
 }
 
 // Utility: Record a note
-export function recordNote(
-  projectId: string,
-  note: string,
-  sessionId?: string
-): void {
-  addTimelineEvent(projectId, 'note', {
-    title: 'Note',
-    description: note,
-  }, sessionId);
+export function recordNote(projectId: string, note: string, sessionId?: string): void {
+  addTimelineEvent(
+    projectId,
+    'note',
+    {
+      title: 'Note',
+      description: note,
+    },
+    sessionId
+  );
+}
+
+// Check if a commit has been recorded
+export function hasCommit(projectId: string, hash: string): boolean {
+  const commits = getTimelineByType(projectId, 'commit', 100);
+  return commits.some((event) => {
+    try {
+      const data = JSON.parse(event.event_data_json);
+      return data.metadata?.hash === hash;
+    } catch {
+      return false;
+    }
+  });
 }
 
 // Export database for advanced queries
