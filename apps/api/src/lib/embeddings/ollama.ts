@@ -51,3 +51,12 @@ export async function generateBatchEmbeddings(
 
   return embeddings
 }
+
+export async function checkOllamaAvailable(baseUrl = DEFAULT_CONFIG.baseUrl): Promise<boolean> {
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`)
+    return res.ok
+  } catch {
+    return false
+  }
+}
